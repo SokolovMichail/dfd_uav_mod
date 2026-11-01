@@ -64,32 +64,55 @@ ROWS = {
 SPAWN_COLUMNS = ['spawn_squad', 'spawn_ammo', 'spawn_cooldown']
 SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # faction -> the row the vans go after
 
-# F4's button layout with a progress bar added: the Spawn Framework fills it while a vehicle's cooldown runs (and
-# keeps it hidden otherwise), the way the timer abilities' buttons (rush.txt) show theirs. The game's pack.txt has
-# only the two buttons. The bar is drawn over them and takes no clicks. Its pictures are new files of the mod (the
-# game's are only read): F4's button with the swarm drones' unit icon in place of its box (art/make_uav_button.py),
-# and a dim grey copy of it over the part of the wait still to go (art/make_cooldown_icons.py - the recipe of the
-# game's own timer buttons). Framework files: pack.txt changes every F4 button (the bar shows only for the
-# framework's vehicles); later they belong in a framework mini-mod.
+# F4's button layout with two progress bars added. The game's pack.txt has only the two buttons; the bars are drawn
+# over them and take no clicks. The Spawn Framework shows them only on its own vehicles: "progress_bar" over the
+# deploy button - it fills while a vehicle's cooldown runs, the way the timer abilities' buttons (rush.txt) show
+# theirs, and shows the drone when ready; "progress_bar_2" over the pack-up button - the drone called back. Their
+# pictures are new files of the mod (the game's are only read): F4's button with the swarm drones' front drone in
+# place of its box (art/make_uav_button.py), a dim grey copy of it over the part of the wait still to go
+# (art/make_cooldown_icons.py - the recipe of the game's own timer buttons), and the drone with an arrow down. The
+# framework also gives the buttons its own tooltips (STRINGS). Framework files: pack.txt changes every F4 button;
+# later they belong in a framework mini-mod.
 PACK_LAYOUT = 'scripts/ui/AbilityButtons/pack.txt'
 UNPACK_ICON = 'textures/ui/pictures/Main/buttons2/buttons_unpack_n.dds'
 DRONES_ICON = 'textures/ui/pictures/tech_pic/infantry_icons_big/lgn_drones.dds'
 COOLDOWN_PICTURES = 'textures/ui/pictures/Main/buttons2/uav_spawn_cooldown_{}.dds'
-PACK_PROGRESS_BAR = [
-    'progress_bar\tprogress_bar\t 0, 0, 76, 76\t\torder_unpack\t\t',
-    '\t\t\t\t\ttooltip_type\tsimple',
-    '\t\t\t\t\tenabled\ttrue',
-    '\t\t\t\t\tscaled\tnone',
-    '\t\t\t\t\timage_type\tnormal',
-    '\t\t\t\t\tindent_tb\tindent_top 0 indent_bottom 0',
-    '\t\t\t\t\tindent_lr\tindent_left 0 indent_right 0',
-    '\t\t\t\t\tis_interactable\tfalse',
-    '\t\t\t\t\timage\tmain\\buttons2\\uav_spawn_cooldown_n.dds',
-    '\t\t\t\t\tprogress_image\tmain\\buttons2\\uav_spawn_cooldown_o.dds',
-    '\t\t\t\t\tdirection\tvertical',
-    '\t\t\t\t\tfont\tarial10b.fnt',
-    '\t\t\t\t\tcolor\t0xffFFFFFF',
-    '\t\t\t\t\tinverted\ttrue',
+RECALL_PICTURE = 'textures/ui/pictures/Main/buttons2/uav_spawn_recall.dds'
+
+
+def progress_bar(name, tip, image, progress_image):
+    return [
+        f'{name}\tprogress_bar\t 0, 0, 76, 76\t\t{tip}\t\t',
+        '\t\t\t\t\ttooltip_type\tsimple',
+        '\t\t\t\t\tenabled\ttrue',
+        '\t\t\t\t\tscaled\tnone',
+        '\t\t\t\t\timage_type\tnormal',
+        '\t\t\t\t\tindent_tb\tindent_top 0 indent_bottom 0',
+        '\t\t\t\t\tindent_lr\tindent_left 0 indent_right 0',
+        '\t\t\t\t\tis_interactable\tfalse',
+        f'\t\t\t\t\timage\tmain\\buttons2\\{image}',
+        f'\t\t\t\t\tprogress_image\tmain\\buttons2\\{progress_image}',
+        '\t\t\t\t\tdirection\tvertical',
+        '\t\t\t\t\tfont\tarial10b.fnt',
+        '\t\t\t\t\tcolor\t0xffFFFFFF',
+        '\t\t\t\t\tinverted\ttrue',
+    ]
+
+
+PACK_PROGRESS_BARS = (progress_bar('progress_bar', 'order_unpack', 'uav_spawn_cooldown_n.dds', 'uav_spawn_cooldown_o.dds')
+                      + progress_bar('progress_bar_2', 'order_pack', 'uav_spawn_recall.dds', 'uav_spawn_recall.dds'))
+
+# The tooltips of F4 on the framework's vehicles (game.dll panel.cpp swaps the buttons' keys order_unpack /
+# order_pack for these): locale/strres.xml rows, made from the game's own; %s - the hotkey.
+STRINGS = [
+    ('spawn_deploy', 'order_unpack', 'Deploy drone (%s)'),
+    ('spawn_deploy_desc', 'order_unpack_desc', 'The vehicle stops and launches its drone. Each drone takes one UAV kit.'),
+    ('spawn_deploy_add', 'order_unpack_add', 'One drone at a time; the vehicle cannot move while deployed. A lost '
+                                             'drone packs the vehicle up, and the next one is ready after a cooldown.'),
+    ('spawn_recall', 'order_pack', 'Recall drone (%s)'),
+    ('spawn_recall_desc', 'order_pack_desc', 'The vehicle packs up and switches to the mobile mode. Its drone '
+                                             'self-destructs.'),
+    ('spawn_recall_add', 'order_pack_add', 'The next drone is ready after a cooldown.'),
 ]
 
 MOD_JSON = {
@@ -150,12 +173,12 @@ def main():
     if 'progress_bar' in layout:
         sys.exit(f'{PACK_LAYOUT} already has a progress bar - check what the game changed')
     nl = '\r\n' if '\r\n' in layout else '\n'
-    layout = layout.rstrip('\r\n') + nl + nl.join(PACK_PROGRESS_BAR) + nl
+    layout = layout.rstrip('\r\n') + nl + nl.join(PACK_PROGRESS_BARS) + nl
     out_layout = os.path.join(a.out, 'basis', *PACK_LAYOUT.split('/'))
     os.makedirs(os.path.dirname(out_layout), exist_ok=True)
     with open(out_layout, 'w', encoding='utf-8', newline='') as f:
         f.write(layout)
-    print(f'{PACK_LAYOUT}: + progress_bar')
+    print(f'{PACK_LAYOUT}: + progress_bar, progress_bar_2')
     art = lambda script, *args: subprocess.run(  # noqa: E731
         [sys.executable, os.path.join(HERE, 'art', script), *args], check=True,
         env=dict(os.environ, PYTHONIOENCODING='utf-8'))
@@ -164,6 +187,8 @@ def main():
     uav_button = os.path.join(cache, 'uav_spawn_button.dds')  # not shipped: only its cooldown pair is
     art('make_uav_button.py', S('base', UNPACK_ICON), S('base', DRONES_ICON), uav_button)
     art('make_cooldown_icons.py', uav_button, *pictures)
+    art('make_uav_button.py', S('base', UNPACK_ICON), S('base', DRONES_ICON),
+        os.path.join(a.out, 'basis', *RECALL_PICTURE.split('/')), '--recall')
 
     print('== names')
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
@@ -172,6 +197,8 @@ def main():
                [(u['van'], u['van_from'], [f'content={u["van_name"]}']) for u in UNITS])
     clone_rows(S('loc_en', 'locale/squads.xml'), os.path.join(loc, 'squads.xml'),
                [(u['squad'], 'Lgn_swarm', [f'content={u["squad_name"]}']) for u in UNITS])
+    clone_rows(S('loc_en', 'locale/strres.xml'), os.path.join(loc, 'strres.xml'),
+               [(key, row, [f'content={text}']) for key, row, text in STRINGS])
 
     # The MODS menu lists only mods with an icon; until the mod has its own, the game's example mod's.
     shutil.copy(os.path.join(a.game, 'mods', 'mod_example_1', 'basis', 'mod_icon.dds'),

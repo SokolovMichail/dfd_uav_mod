@@ -5,13 +5,19 @@ is deployed (F4). Your mod only describes the vehicle in the game's tables; no c
 
 - Deployed, the vehicle spawns its squad at once, if it has a kit left.
 - One squad per vehicle at a time.
-- The squad dies when the vehicle packs up, is destroyed, or leaves F4 mode for any other reason.
+- The squad dies when the vehicle packs up, is destroyed, or leaves F4 mode for any other reason - also inside a
+  building or a vehicle (there a few seconds later: the self-detonation does not reach it, the engine's kill queue
+  does).
 - A squad lost in battle packs its vehicle up by itself.
 - After the squad dies (in battle or with its vehicle's pack-up), the vehicle waits a cooldown before the next one.
-  The wait shows on the vehicle's command panel as a greyed-out button filling up (F1, left of F4 - the game's
-  "Rush" button, borrowed). Deployed again before the wait is over, the vehicle launches its squad by itself when
-  it is.
+  F4 shows the wait: greyed out, filling up, and it cannot be pressed until the wait is over.
 - Each squad costs one round of the vehicle's own ammunition - the "kit". No kit left, no squad.
+
+On the framework's vehicles F4 has pictures and tooltips of its own: the mod's `scripts/ui/AbilityButtons/pack.txt`
+adds two progress bars over F4's buttons - `progress_bar` on the deploy button (its picture when ready, and the
+cooldown), `progress_bar_2` on the pack-up one - and the framework switches the buttons' tooltip keys to
+`spawn_deploy` and `spawn_recall` (rows of `locale/strres.xml`, each with `_desc` and `_add`, `%s` - the hotkey).
+Other vehicles' F4 stays as the game draws it.
 
 Patchwork UAV, the framework's example mod, adds two vans that keep a recon drone in the air.
 

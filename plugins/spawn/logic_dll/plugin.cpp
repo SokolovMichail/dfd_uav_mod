@@ -8,6 +8,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace spawn {
 
@@ -115,10 +116,14 @@ using SpawnFn = void* (*)(const float* pos, void* world, const MsvcString* team,
                           float angle, void* ctx, void*, void*, void*, void*, void*, void*, int);
 using DetonateFn = void (*)(void* entity);
 using PackFn = void (*)(void* entity);  // give the entity's AI the order to leave F4 mode (AiStopRechargeOrder)
+using KillerFn = void* (*)(void* world);          // the world's kill manager
+using KillFn = void (*)(void* killer, void* unit);  // queue a unit to be killed
 SpawnFn g_spawn;
 void* g_spawnCtx;
 DetonateFn g_detonate;
 PackFn g_pack;
+KillerFn g_killer;  // optional: without them a squad inside a building or a vehicle outlives its vehicle
+KillFn g_kill;
 
 // A component's owner (a vehicle): [component+0x10] is a reference block, its object the owner.
 void* ownerOf(void* component) { return component ? objectOf(field(component, 0x10)) : nullptr; }
@@ -148,14 +153,15 @@ void* aiOf(void* entity) { return field(cacheOf(entity), 0x28); }
 void* worldOf(void* entity) { return vcall<void*>(entity, 0x78); }
 
 // A squad's soldiers: "is a squad" (vfunc +0x98(0x10)), then AiFacet +0x3d0 -> +0x68, a vector of entities.
-size_t soldiersOf(void* squad) {
-    if (!vcall<bool>(squad, 0x98, 0x10)) return 0;
+std::vector<void*> soldierList(void* squad) {
+    if (!vcall<bool>(squad, 0x98, 0x10)) return {};
     void* ai = aiOf(squad);
     void* members = ai ? vcall<void*>(ai, 0x3d0) : nullptr;
-    if (!members) return 0;
+    if (!members) return {};
     auto v = vcall<void***>(members, 0x68);
-    return static_cast<size_t>(v[1] - v[0]);
+    return std::vector<void*>(v[0], v[1]);
 }
+size_t soldiersOf(void* squad) { return soldierList(squad).size(); }
 
 // The live entity with this id, with a strong reference the caller releases; nullptr - gone.
 // world->vfunc(+0x10) is the entity registry, its vfunc(+0x60)(&ref, id) the lookup.
@@ -242,6 +248,40 @@ DepotEntry* depotEntry(void* depot, const std::string& name) {
 std::unordered_map<core::Vehicle*, Known> g_known;
 int g_events = 0;
 
+// Squads self-detonated a moment ago. The self-detonation is a lethal hit to every soldier, and a soldier inside a
+// building or a vehicle takes no hit: whoever of the squad is still there kDetonateCheckMs later goes into the
+// engine's kill queue, as the mission action killAction does it (in the open that death does not fall - floating
+// bodies - so it is only the second try).
+struct Dying {
+    void* world;
+    core::SquadId squad;
+    uint64_t due;
+};
+std::vector<Dying> g_dying;
+constexpr uint64_t kDetonateCheckMs = 3000;
+
+void finishDying() {
+    uint64_t now = GetTickCount64();
+    for (auto it = g_dying.begin(); it != g_dying.end();) {
+        if (now < it->due) {
+            ++it;
+            continue;
+        }
+        Dying d = *it;
+        it = g_dying.erase(it);
+        RefBlock* rb = entityById(d.world, d.squad);
+        if (!rb) continue;
+        std::vector<void*> left = soldierList(rb->object);
+        if (!left.empty()) {
+            void* killer = g_killer(d.world);
+            for (void* u : left) g_kill(killer, u);
+            g_log("squad %d outlived its self-detonation (inside a building or a vehicle?): %zu soldier(s) killed",
+                  d.squad, left.size());
+        }
+        release(rb);
+    }
+}
+
 class LogicDllSpawnPort final : public core::SpawnPort {
 public:
     const core::SpawnConfig* config(core::Vehicle* v) override {
@@ -287,6 +327,7 @@ public:
         if (void* ai = aiOf(rb->object)) vcall<void>(ai, 0x370, true);
         g_detonate(rb->object);
         release(rb);
+        if (g_killer && g_kill) g_dying.push_back({knownWorld(v), s, GetTickCount64() + kDetonateCheckMs});
     }
 
     // The vehicle is alive here: this runs from its own AiFacet update.
@@ -392,6 +433,7 @@ void* hookStateDtor(void* state, unsigned flags) {
 // the wait is over.
 void hookAiUpdate(void* ai, float dt) {
     g_origAiUpdate(ai, dt);
+    if (!g_dying.empty()) guarded("kill", [] { finishDying(); });
     void* e = ownerOf(ai);
     if (!e || !g_tracked.count(e)) return;
     guarded("tick", [&] {
@@ -437,6 +479,11 @@ constexpr const char* kSigPackCall =
     "E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 49 8B 0E 48 85 C9 74 09 48 8B 49 10 48 85 C9 75 03 48 8B CF E8 ?? ?? ?? ??";
 constexpr size_t kPackCall = 0x44;
 constexpr const char* kProloguePack = "40 56 57 48 83 EC 38 48 8B 01 48 8B F9 FF 90 B0 00 00 00 48 8B 70 28";
+// KillUnitsAction (0x339d0): "world -> kill manager (call at +6), queue a unit (call at +17)"; every match must agree.
+constexpr const char* kSigKillCall = "FF 50 78 48 8B C8 E8 ?? ?? ?? ?? 48 8B D6 48 8B C8 E8 ?? ?? ?? ??";
+constexpr size_t kKillerCall = 6, kKillCall = 17;
+constexpr const char* kPrologueKiller = "40 53 48 83 EC 20 65 48 8B 04 25 58 00 00 00 48 8B D9";
+constexpr const char* kPrologueKill = "48 89 5C 24 18 55 56 57 41 56 41 57 48 83 EC 40 0F 29 74 24 30 4C 8B F2";
 // AiFacet slots 33 / 34 (set an ability's cooldown timer / length): both look the ability up in the table at
 // [AiFacet+0x108] - "mov r10, [rcx+0x108]; mov r9, FNV prime".
 constexpr const char* kPrologueAbilitySetter = "4C 8B 91 08 01 00 00 49 B9 B3 01 00 00 00 01 00 00";
@@ -472,6 +519,22 @@ bool resolve(const Image& img, Addr& a) {
         g_pack = reinterpret_cast<PackFn>(Image::ripTarget(pack[0] + kPackCall, 1, 5));
         if (!Image::matches(reinterpret_cast<uintptr_t>(g_pack), kProloguePack)) g_pack = nullptr;
     }
+    auto kills = img.find(kSigKillCall);
+    for (uintptr_t h : kills) {
+        auto killer = reinterpret_cast<KillerFn>(Image::ripTarget(h + kKillerCall, 1, 5));
+        auto kill = reinterpret_cast<KillFn>(Image::ripTarget(h + kKillCall, 1, 5));
+        if ((g_killer && killer != g_killer) || (g_kill && kill != g_kill) ||
+            !Image::matches(reinterpret_cast<uintptr_t>(killer), kPrologueKiller) ||
+            !Image::matches(reinterpret_cast<uintptr_t>(kill), kPrologueKill)) {
+            g_killer = nullptr;
+            g_kill = nullptr;
+            break;
+        }
+        g_killer = killer;
+        g_kill = kill;
+    }
+    g_log("kill queue: manager %08X queue %08X (%zu calls)%s", rvaOf(img, (void*)g_killer), rvaOf(img, (void*)g_kill),
+          kills.size(), g_kill ? "" : " - not found: a squad inside a building or a vehicle outlives its vehicle");
     auto slotOf = [&](size_t off) { return *reinterpret_cast<uintptr_t*>(a.aiVt + off); };
     bool setters = Image::matches(slotOf(kSetAbilityTimer), kPrologueAbilitySetter) &&
                    Image::matches(slotOf(kSetAbilityLength), kPrologueAbilitySetter);

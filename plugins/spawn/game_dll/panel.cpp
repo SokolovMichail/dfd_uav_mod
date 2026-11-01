@@ -9,14 +9,17 @@
 // update (slot 7) and "ready" (slot 33) do for F4 what TimerAbilityWindow does for its ability:
 //   * timer running: both buttons greyed out, the progress bar shown with the part still to wait, not ready;
 //   * timer over: the buttons as before, the bar hidden -
-//   * except on a vehicle of the framework ready to deploy: there the bar stays, with nothing to wait, so F4 shows
-//     the bar's picture (the drones) instead of the unpack box. Its pack-up button and every other vehicle's F4 stay
-//     as the game draws them.
-// The progress bar comes with the mod's scripts/ui/AbilityButtons/pack.txt; without it F4 only greys out.
+//   * except on a vehicle of the framework: there a bar stays, with nothing to wait, so F4 shows the bar's picture
+//     instead of the game's box - "progress_bar" (the squad going out) on the deploy button, "progress_bar_2" (the
+//     squad called back) on the pack-up one - and the buttons' tooltips are the framework's: spawn_deploy and
+//     spawn_recall (strres.xml keys, with _desc and _add) in place of order_unpack and order_pack. Every other
+//     vehicle's F4 stays as the game draws it.
+// The progress bars come with the mod's scripts/ui/AbilityButtons/pack.txt; without them F4 only greys out.
 //
 // A window: +0x120 its ability id, +0x128 its layout (children: a vector at +0x40, a child's name - std::string at
 // +0x18), +0x138 the unit (reference block); a TwiceAbilityWindow's +0x240 - which button it shows (0 unpack, 1
-// pack, 0x211e70). A widget: +0x5b shown, vfunc +0x48 show(bool).
+// pack, 0x211e70). A widget: +0x5b shown, vfunc +0x48 show(bool), +0x80 its tooltip's key (std::string, the
+// layout's "tip"; the tooltip is built from it each time it shows, 0x2cfa80).
 
 #include <cstring>
 #include <unordered_set>
@@ -47,7 +50,7 @@ constexpr int kAbilityPack = 7;
 constexpr size_t kWinAbility = 0x120, kWinLayout = 0x128, kWinButton = 0x130, kWinButton2 = 0x238, kWinUnit = 0x138;
 constexpr size_t kWinShowing = 0x240;  // 0 - the unpack (deploy) button is shown, 1 - the pack-up one
 constexpr size_t kLayoutChildren = 0x40, kChildName = 0x18, kWidgetShown = 0x5b, kWidgetShow = 0x48;
-constexpr size_t kBarValue = 0x1a8;
+constexpr size_t kBarValue = 0x1a8, kWidgetTip = 0x80;
 constexpr size_t kGetAbilityTimer = 0xf0, kGetAbilityLength = 0xf8;  // AiFacet slots 30 / 31
 
 using WindowFn = void (*)(void* window);
@@ -104,28 +107,53 @@ void showBar(void* bar, float part) {
     g_refresh(bar);
 }
 
+// Switch a button's tooltip key between the game's and the framework's: only a key that is one of the two, kept
+// in the string itself (both are at most 15 characters - no memory of the game's to allocate or free).
+void setTip(void* button, const char* game, const char* ours, bool framework) {
+    if (!button) return;
+    auto tip = reinterpret_cast<MsvcString*>(static_cast<char*>(button) + kWidgetTip);
+    const char* want = framework ? ours : game;
+    const char* other = framework ? game : ours;
+    if (tip->cap != 15 || tip->size > 15 || strcmp(tip->buf, other) != 0) return;
+    size_t n = strlen(want);
+    memcpy(tip->buf, want, n + 1);
+    tip->size = n;
+}
+
 // TwiceAbilityWindow slot 7 - every frame: after the game has set the buttons, F4 shows the cooldown - and on a
-// vehicle of the framework ready to deploy, the drones.
+// vehicle of the framework, its own pictures and tooltips.
 void hookUpdate(void* window) {
     g_origUpdate(window);
     guarded("panel", [&] {
         float left = 0, length = 0;
         void* unit = nullptr;
         if (!packTimer(window, left, length, &unit)) return;
+        bool framework = spawnsSquads(unit);
+        setTip(field(window, kWinButton), "order_unpack", "spawn_deploy", framework);
+        setTip(field(window, kWinButton2), "order_pack", "spawn_recall", framework);
         void* bar = child(window, "progress_bar");
+        void* bar2 = child(window, "progress_bar_2");
         if (left > 0 && length > 0) {
             greyButtons(window, true);
             g_greyed.insert(window);
             if (bar) showBar(bar, left / length);
+            if (bar2) show(bar2, false);
             return;
         }
         if (g_greyed.erase(window)) greyButtons(window, false);
-        if (!bar) return;
         bool deployButton = *reinterpret_cast<int*>(static_cast<char*>(window) + kWinShowing) == 0;
-        if (deployButton && spawnsSquads(unit))
-            showBar(bar, 0);
-        else
-            show(bar, false);
+        if (bar) {
+            if (framework && deployButton)
+                showBar(bar, 0);
+            else
+                show(bar, false);
+        }
+        if (bar2) {
+            if (framework && !deployButton)
+                showBar(bar2, 0);
+            else
+                show(bar2, false);
+        }
     });
 }
 
