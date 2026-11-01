@@ -93,7 +93,11 @@ public:
 
 // Find everything in logic.dll and send all the plugin's writes to p. true - p accepted them all.
 bool install(const Image& img, Patcher& p);
-// The standalone way: install() with the writes made at once by dfd::PatchSet.
+// The game.dll part (game_dll/panel.cpp): F4's button shows the cooldown. Independent of install(): without it
+// spawning works, the wait is just not shown.
+bool installPanel(const Image& gameImg, Patcher& p);
+// The standalone way: install() / installPanel() with the writes made at once by dfd::PatchSet.
 void onLogicLoaded(uintptr_t base);
+void onGameLoaded(uintptr_t base);
 
 }  // namespace spawn

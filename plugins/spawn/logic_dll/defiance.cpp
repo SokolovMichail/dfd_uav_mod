@@ -58,9 +58,12 @@ std::string moduleName(HMODULE m) {
 
 // The loader's Patcher. apply() checks every write the way dfd::PatchSet does, then asks the loader for each one
 // (patch_bytes) instead of writing it: a vtable slot is 8 bytes, from the original function's address to the hook's.
+// The writes every patcher staged, for the patch contract (entries point into the patchers, kept for the process).
+std::vector<DefiancePatchContractEntryV1> g_contract;
+
 class DefiancePatcher final : public Patcher {
 public:
-    explicit DefiancePatcher(const Image& img) : img_(img) {}
+    DefiancePatcher(const Image& img, const char* module) : img_(img), module_(module) {}
 
     void slot(const char* what, uintptr_t vtable, int slot, const char* prologue, void* hook,
               void** saved) override {
@@ -100,15 +103,12 @@ public:
                 return false;
             }
             *it.saved = it.savedValue;
-            g_log("staged: %s (RVA %08X)", it.what, img_.rva(it.at));
-            contract_.push_back({"logic.dll", img_.rva(it.at), DEFIANCE_PATCH_KIND_BYTES, it.orig.data(),
-                                 it.orig.size(), it.repl.data(), it.repl.size()});
+            g_log("staged: %s (%s RVA %08X)", it.what, module_, img_.rva(it.at));
+            g_contract.push_back({module_, img_.rva(it.at), DEFIANCE_PATCH_KIND_BYTES, it.orig.data(), it.orig.size(),
+                                  it.repl.data(), it.repl.size()});
         }
         return true;
     }
-
-    // The writes apply() staged, for the patch contract. Points into this object.
-    const std::vector<DefiancePatchContractEntryV1>& contract() const { return contract_; }
 
 private:
     struct Item {
@@ -120,12 +120,12 @@ private:
         const char* prologue;
     };
     Image img_;
+    const char* module_;
     std::vector<Item> items_;
-    std::vector<DefiancePatchContractEntryV1> contract_;
 };
 
-// Kept for the process: the contract points into the patcher.
-std::unique_ptr<DefiancePatcher> g_patcher;
+// Kept for the process: the contract points into the patchers.
+std::unique_ptr<DefiancePatcher> g_patcher, g_panelPatcher;
 
 // Called by the loader on its startup thread, logic.dll already loaded. 0 - every write is staged.
 int32_t init(const DefianceApi* api) {
@@ -141,10 +141,18 @@ int32_t init(const DefianceApi* api) {
         return 1;
     }
     Image img(reinterpret_cast<uintptr_t>(base));
-    g_patcher = std::make_unique<DefiancePatcher>(img);
+    g_patcher = std::make_unique<DefiancePatcher>(img, "logic.dll");
     if (!install(img, *g_patcher)) {
         g_patcher.reset();  // no contract for a failed init
+        g_contract.clear();
         return 1;
+    }
+    // The F4 cooldown in game.dll: without it spawning works, so a failure here does not fail init.
+    if (void* game = api->module_base("game.dll")) {
+        Image gameImg(reinterpret_cast<uintptr_t>(game));
+        g_panelPatcher = std::make_unique<DefiancePatcher>(gameImg, "game.dll");
+        size_t before = g_contract.size();
+        if (!installPanel(gameImg, *g_panelPatcher)) g_contract.resize(before);
     }
     g_log("Spawn Framework staged: active once DefianceLoader commits its patch plan");
     return 0;
@@ -177,7 +185,6 @@ extern "C" __declspec(dllexport) const DefiancePlugin* defiance_plugin() { retur
 extern "C" __declspec(dllexport) const DefiancePatchContractV1* defiance_patch_contract_v1(const DefianceApi*) {
     static DefiancePatchContractV1 contract{};
     if (!g_patcher) return nullptr;
-    const auto& entries = g_patcher->contract();
-    contract = {1, sizeof contract, entries.data(), entries.size()};
+    contract = {1, sizeof contract, g_contract.data(), g_contract.size()};
     return &contract;
 }

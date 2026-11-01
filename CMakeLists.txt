@@ -39,7 +39,8 @@ set(DFD_GUARD_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/common/guard_x64.S")
 set(SPAWN_SOURCES ${SPAWN_CORE_SOURCES} ${DFD_GUARD_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/plugin.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/tables.cpp")
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/tables.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/game_dll/panel.cpp")
 # uuid: FOLDERID_Documents, for the folder the game keeps mods.json in (tables.cpp)
 function(spawn_plugin target entry)
     add_library(${target} SHARED ${SPAWN_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/${entry}")

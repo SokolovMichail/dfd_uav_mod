@@ -64,6 +64,28 @@ ROWS = {
 SPAWN_COLUMNS = ['spawn_squad', 'spawn_ammo', 'spawn_cooldown']
 SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # faction -> the row the vans go after
 
+# F4's button layout with a progress bar added: the Spawn Framework fills it while a vehicle's cooldown runs (and
+# keeps it hidden otherwise), the way the timer abilities' buttons (rush.txt) show theirs. The game's pack.txt has
+# only the two buttons. The bar is drawn over them and takes no clicks. A framework file: it changes every F4 button
+# (shown only for the framework's vehicles); later it belongs in a framework mini-mod.
+PACK_LAYOUT = 'scripts/ui/AbilityButtons/pack.txt'
+PACK_PROGRESS_BAR = [
+    'progress_bar\tprogress_bar\t 0, 0, 76, 76\t\torder_unpack\t\t',
+    '\t\t\t\t\ttooltip_type\tsimple',
+    '\t\t\t\t\tenabled\ttrue',
+    '\t\t\t\t\tscaled\tnone',
+    '\t\t\t\t\timage_type\tnormal',
+    '\t\t\t\t\tindent_tb\tindent_top 0 indent_bottom 0',
+    '\t\t\t\t\tindent_lr\tindent_left 0 indent_right 0',
+    '\t\t\t\t\tis_interactable\tfalse',
+    '\t\t\t\t\timage\tmain\\buttons2\\buttons_unpack_p.dds',
+    '\t\t\t\t\tprogress_image\tmain\\buttons2\\buttons_unpack_n.dds',
+    '\t\t\t\t\tdirection\tvertical',
+    '\t\t\t\t\tfont\tarial10b.fnt',
+    '\t\t\t\t\tcolor\t0xffFFFFFF',
+    '\t\t\t\t\tinverted\ttrue',
+]
+
 MOD_JSON = {
     'name': 'Patchwork UAV',
     'description': ('Two vans that keep a recon drone in the air while deployed (F4): the Integrators\' Recon Van '
@@ -116,6 +138,18 @@ def main():
             anchors[faction] = u['van']
     tool('patch_army_toml.py', S('base', 'scripts/default_army.toml'),
          os.path.join(a.out, 'basis', 'scripts', 'default_army.toml'), *edits)
+
+    print('== F4 button layout')
+    layout = open(S('base', PACK_LAYOUT), encoding='utf-8', newline='').read()
+    if 'progress_bar' in layout:
+        sys.exit(f'{PACK_LAYOUT} already has a progress bar - check what the game changed')
+    nl = '\r\n' if '\r\n' in layout else '\n'
+    layout = layout.rstrip('\r\n') + nl + nl.join(PACK_PROGRESS_BAR) + nl
+    out_layout = os.path.join(a.out, 'basis', *PACK_LAYOUT.split('/'))
+    os.makedirs(os.path.dirname(out_layout), exist_ok=True)
+    with open(out_layout, 'w', encoding='utf-8', newline='') as f:
+        f.write(layout)
+    print(f'{PACK_LAYOUT}: + progress_bar')
 
     print('== names')
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')

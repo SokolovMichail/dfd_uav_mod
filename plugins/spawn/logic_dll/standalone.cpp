@@ -9,7 +9,7 @@
 
 namespace spawn {
 
-dfd::DllWatcher g_watcher;
+dfd::DllWatcher g_watcher, g_gameWatcher;
 
 }  // namespace spawn
 
@@ -23,5 +23,6 @@ BOOL WINAPI DllMain(HINSTANCE self, DWORD reason, LPVOID) {
     setGameDir(gameDirOf(self));
     g_log("Spawn Framework " SPAWN_VERSION " loaded, waiting for logic.dll");
     if (!g_watcher.watch(L"logic.dll", &onLogicLoaded)) g_log("cannot register DLL notification");
+    if (!g_gameWatcher.watch(L"game.dll", &onGameLoaded)) g_log("cannot register DLL notification for game.dll");
     return TRUE;
 }
