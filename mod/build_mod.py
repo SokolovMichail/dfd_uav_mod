@@ -66,9 +66,12 @@ SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # fact
 
 # F4's button layout with a progress bar added: the Spawn Framework fills it while a vehicle's cooldown runs (and
 # keeps it hidden otherwise), the way the timer abilities' buttons (rush.txt) show theirs. The game's pack.txt has
-# only the two buttons. The bar is drawn over them and takes no clicks. A framework file: it changes every F4 button
-# (shown only for the framework's vehicles); later it belongs in a framework mini-mod.
+# only the two buttons. The bar is drawn over them and takes no clicks. Its pictures - the unpack icon and a dim
+# grey copy over the part of the wait still to go - are made from the game's icon by art/make_cooldown_icons.py
+# (F4 has no cooldown pictures of its own). Framework files: they change every F4 button (the bar shows only for the
+# framework's vehicles); later they belong in a framework mini-mod.
 PACK_LAYOUT = 'scripts/ui/AbilityButtons/pack.txt'
+UNPACK_ICON = 'textures/ui/pictures/Main/buttons2/buttons_unpack_n.dds'
 PACK_PROGRESS_BAR = [
     'progress_bar\tprogress_bar\t 0, 0, 76, 76\t\torder_unpack\t\t',
     '\t\t\t\t\ttooltip_type\tsimple',
@@ -78,8 +81,8 @@ PACK_PROGRESS_BAR = [
     '\t\t\t\t\tindent_tb\tindent_top 0 indent_bottom 0',
     '\t\t\t\t\tindent_lr\tindent_left 0 indent_right 0',
     '\t\t\t\t\tis_interactable\tfalse',
-    '\t\t\t\t\timage\tmain\\buttons2\\buttons_unpack_p.dds',
-    '\t\t\t\t\tprogress_image\tmain\\buttons2\\buttons_unpack_n.dds',
+    '\t\t\t\t\timage\tmain\\buttons2\\buttons_unpack_cooldown_n.dds',
+    '\t\t\t\t\tprogress_image\tmain\\buttons2\\buttons_unpack_cooldown_o.dds',
     '\t\t\t\t\tdirection\tvertical',
     '\t\t\t\t\tfont\tarial10b.fnt',
     '\t\t\t\t\tcolor\t0xffFFFFFF',
@@ -150,6 +153,12 @@ def main():
     with open(out_layout, 'w', encoding='utf-8', newline='') as f:
         f.write(layout)
     print(f'{PACK_LAYOUT}: + progress_bar')
+    icons = os.path.join(a.out, 'basis', *os.path.dirname(UNPACK_ICON).split('/'))
+    os.makedirs(icons, exist_ok=True)
+    env = dict(os.environ, PYTHONIOENCODING='utf-8')
+    subprocess.run([sys.executable, os.path.join(HERE, 'art', 'make_cooldown_icons.py'), S('base', UNPACK_ICON),
+                    os.path.join(icons, 'buttons_unpack_cooldown_n.dds'),
+                    os.path.join(icons, 'buttons_unpack_cooldown_o.dds')], check=True, env=env)
 
     print('== names')
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
