@@ -8,11 +8,15 @@
 // that. The logic.dll part (plugin.cpp) keeps a vehicle's cooldown in F4's own timer; here TwiceAbilityWindow's
 // update (slot 7) and "ready" (slot 33) do for F4 what TimerAbilityWindow does for its ability:
 //   * timer running: both buttons greyed out, the progress bar shown with the part still to wait, not ready;
-//   * timer over: the buttons as before, the bar hidden.
+//   * timer over: the buttons as before, the bar hidden -
+//   * except on a vehicle of the framework ready to deploy: there the bar stays, with nothing to wait, so F4 shows
+//     the bar's picture (the drones) instead of the unpack box. Its pack-up button and every other vehicle's F4 stay
+//     as the game draws them.
 // The progress bar comes with the mod's scripts/ui/AbilityButtons/pack.txt; without it F4 only greys out.
 //
 // A window: +0x120 its ability id, +0x128 its layout (children: a vector at +0x40, a child's name - std::string at
-// +0x18), +0x138 the unit (reference block). A widget: +0x5b shown, vfunc +0x48 show(bool).
+// +0x18), +0x138 the unit (reference block); a TwiceAbilityWindow's +0x240 - which button it shows (0 unpack, 1
+// pack, 0x211e70). A widget: +0x5b shown, vfunc +0x48 show(bool).
 
 #include <cstring>
 #include <unordered_set>
@@ -41,6 +45,7 @@ struct MsvcString {
 
 constexpr int kAbilityPack = 7;
 constexpr size_t kWinAbility = 0x120, kWinLayout = 0x128, kWinButton = 0x130, kWinButton2 = 0x238, kWinUnit = 0x138;
+constexpr size_t kWinShowing = 0x240;  // 0 - the unpack (deploy) button is shown, 1 - the pack-up one
 constexpr size_t kLayoutChildren = 0x40, kChildName = 0x18, kWidgetShown = 0x5b, kWidgetShow = 0x48;
 constexpr size_t kBarValue = 0x1a8;
 constexpr size_t kGetAbilityTimer = 0xf0, kGetAbilityLength = 0xf8;  // AiFacet slots 30 / 31
@@ -56,12 +61,13 @@ RefreshFn g_refresh;
 
 std::unordered_set<void*> g_greyed;  // windows whose buttons we greyed out (only compared, never followed)
 
-// F4's timer and its length for the window's unit; false - not F4, or no unit / AI.
-bool packTimer(void* window, float& left, float& length) {
+// F4's timer and its length for the window's unit (and the unit); false - not F4, or no unit / AI.
+bool packTimer(void* window, float& left, float& length, void** unitOut = nullptr) {
     if (*reinterpret_cast<int*>(static_cast<char*>(window) + kWinAbility) != kAbilityPack) return false;
     void* rb = field(window, kWinUnit);
     void* unit = rb ? field(rb, 0x10) : nullptr;
     if (!unit) return false;
+    if (unitOut) *unitOut = unit;
     void* ai = field(vcall<void*>(unit, 0xb0), 0x28);
     if (!ai) return false;
     left = vcall<float>(ai, kGetAbilityTimer, kAbilityPack);
@@ -91,26 +97,35 @@ void greyButtons(void* window, bool grey) {
         if (void* b = field(window, at)) g_grey(b, grey);
 }
 
-// TwiceAbilityWindow slot 7 - every frame: after the game has set the buttons, F4 shows the cooldown.
+// Show the bar with `part` of it (0..1) still to wait.
+void showBar(void* bar, float part) {
+    show(bar, true);
+    *reinterpret_cast<float*>(static_cast<char*>(bar) + kBarValue) = part < 1 ? part : 1;
+    g_refresh(bar);
+}
+
+// TwiceAbilityWindow slot 7 - every frame: after the game has set the buttons, F4 shows the cooldown - and on a
+// vehicle of the framework ready to deploy, the drones.
 void hookUpdate(void* window) {
     g_origUpdate(window);
     guarded("panel", [&] {
         float left = 0, length = 0;
-        if (!packTimer(window, left, length)) return;
+        void* unit = nullptr;
+        if (!packTimer(window, left, length, &unit)) return;
         void* bar = child(window, "progress_bar");
         if (left > 0 && length > 0) {
             greyButtons(window, true);
             g_greyed.insert(window);
-            if (bar) {
-                show(bar, true);
-                float part = left / length;
-                *reinterpret_cast<float*>(static_cast<char*>(bar) + kBarValue) = part < 1 ? part : 1;
-                g_refresh(bar);
-            }
-        } else {
-            if (g_greyed.erase(window)) greyButtons(window, false);
-            if (bar) show(bar, false);
+            if (bar) showBar(bar, left / length);
+            return;
         }
+        if (g_greyed.erase(window)) greyButtons(window, false);
+        if (!bar) return;
+        bool deployButton = *reinterpret_cast<int*>(static_cast<char*>(window) + kWinShowing) == 0;
+        if (deployButton && spawnsSquads(unit))
+            showBar(bar, 0);
+        else
+            show(bar, false);
     });
 }
 

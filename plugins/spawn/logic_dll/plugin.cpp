@@ -485,6 +485,8 @@ bool resolve(const Image& img, Addr& a) {
 
 }  // namespace
 
+bool spawnsSquads(void* entity) { return entity && spawnTable().count(sysnameOf(entity)) != 0; }
+
 // ---------------------------------------------------------------- installing
 
 bool install(const Image& img, Patcher& p) {
