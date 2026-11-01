@@ -30,7 +30,6 @@ game ignores columns it does not know):
 
 | Column | Value | |
 |---|---|---|
-| `abilities` | `ammunition_recharge,deploy_unit` | `deploy_unit` is the framework's switch: only a vehicle that names it is the framework's (the game ignores the name). `ammunition_recharge` gives the F4 button, see below |
 | `spawn_squad` | a `squads.xml` sysname | the squad the vehicle keeps; required |
 | `spawn_ammo` | an `ammunition.xml` sysname | the kit: one round is spent per squad; empty - squads cost nothing |
 | `spawn_cooldown` | seconds | game time after the squad dies before the next one; default 60 |
@@ -39,7 +38,7 @@ And in the usual columns:
 
 | Cell | Value | Why |
 |---|---|---|
-| `abilities` | `ammunition_recharge` (with `deploy_unit`) | the F4 button: the game gives it only to supply vehicles. Nothing but `deploy_unit` may be next to it (`refuel`, `support`, `repair` take it away) |
+| `abilities` | `ammunition_recharge` | the F4 button: the game gives it only to supply vehicles. Nothing else may be next to it (`refuel`, `support`, `repair` take it away) |
 | `capacity_ammo_recharger` | `0` | the vehicle hands out no ammunition in F4 mode |
 | `ammunition` | e.g. `uav_kit:5` | the kits the vehicle carries, with its other ammunition |
 | `gun_mounts` | one mount whose gun loads the kit | **a vehicle stores only the ammunition one of its guns fires** - without such a gun the kits are not there |
@@ -66,8 +65,7 @@ The squad is of its vehicle's team and appears 8 m from it.
   vehicle mods that both ship it conflict. Ship only the tables you change.
 - **Where the framework reads the columns.** From the files of the mods enabled in MODS
   (`Documents\My Games\Terminator Dark Fate\mods\mods.json`): every `cars.xml`, `tanks.xml`, `cars.<x>.patch.xml`,
-  `tanks.<x>.patch.xml` in the mod folder. A vehicle in several mods takes the last mod's row. A table-merge patch
-  file needs the `abilities` column too, with `deploy_unit` in it.
+  `tanks.<x>.patch.xml` in the mod folder. A vehicle in several mods takes the last mod's row.
 - **Check it works.** The framework's log - `bin\plugins\SpawnFramework.log`, or the DefianceLoader log for
   `sokolov.spawn-framework`: at the first F4 of any vehicle it lists the spawning vehicles it found
   (`Res_patchwork_van -> Res_patchwork_uav (kit uav_kit, cooldown 60 s)`), then the first deploys, spawns and kills.
