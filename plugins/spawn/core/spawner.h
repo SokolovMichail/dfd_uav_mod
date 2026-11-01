@@ -6,7 +6,7 @@
 //   - The squad dies when the vehicle leaves F4 mode for whatever reason (packing up, destroyed, another order).
 //   - A squad lost in battle packs its vehicle up: the vehicle leaves F4 mode by itself.
 //   - After the squad dies - killed in battle or with its vehicle's pack-up - the vehicle waits spawn_cooldown
-//     seconds of game time before the next one (deployed again before that, it spawns when the cooldown is over).
+//     seconds of game time before the next one, with its F4 button off (f4Blocked).
 //
 // The core never touches game memory: it sees the game through SpawnPort, and vehicles are opaque handles.
 #pragma once
@@ -39,8 +39,6 @@ public:
     virtual void kill(Vehicle* v, SquadId s) = 0;
     // Order the vehicle out of F4 mode, as the player's F4 does. The game ends F4 mode later (onPacked follows).
     virtual void pack(Vehicle* v) = 0;
-    // Show the cooldown on the vehicle: `left` - the part of it still to wait, (0, 1]; 0 - over (said once).
-    virtual void showCooldown(Vehicle* v, const SpawnConfig& c, float left) = 0;
     // Report a notable event (the binding decides how to log it).
     virtual void event(const char* what, Vehicle* v, SquadId s) = 0;
 };
@@ -48,11 +46,11 @@ public:
 // What the rules remember about one vehicle.
 struct VehicleState {
     const SpawnConfig* config = nullptr;  // taken from the port when the vehicle first deploys
-    bool deployed = false;
+    bool deployed = false;  // in F4 mode and spawning (false already while a pack-up the rules ordered is under way)
+    bool inF4 = false;      // in F4 mode as far as the game is concerned: from onDeployed to onPacked
     SquadId squad = 0;
     float cooldown = 0;  // seconds of game time left before the next spawn
     bool noKit = false;  // the last try found no kit (reported once until a spawn succeeds)
-    bool shown = false;  // the cooldown is being shown on the vehicle
 };
 
 class Spawner {
@@ -69,6 +67,10 @@ public:
     // Every frame for every vehicle, with the frame's game time: cooldowns run (deployed or not), a deployed vehicle
     // notices its squad's death and spawns when it may. Vehicles the rules do not know are skipped at once.
     void onTick(Vehicle* v, float dt);
+
+    // Is the vehicle's F4 button off: it is out of F4 mode and its cooldown runs - the player sees it is not ready.
+    // While a pack-up is still under way the button stays as the game has it. Vehicles the rules do not know: false.
+    bool f4Blocked(Vehicle* v) const;
 
     // The state of a vehicle, nullptr - never deployed (for logs and tests).
     const VehicleState* state(Vehicle* v) const;

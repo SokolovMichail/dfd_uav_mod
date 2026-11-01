@@ -206,28 +206,24 @@ inline void* entity(core::Vehicle* v) { return v; }
 struct Known {
     void* world;
     std::string name;
-    void* launcher = nullptr;   // the gun that loads the kit (shows the cooldown); found on first use
-    bool looked = false;        // looked for it already
 };
 
-// A gun (vtable Gun): +0x50 the ammunition row it has loaded, +0xe0 reloading (byte), +0xf0 the reload timer, the
-// reload time is +0xd0 x +0xfc (slot 25 - the reload progress the ammo panel shows - is +0xf0 / that).
-constexpr size_t kGunAmmo = 0x50, kGunReloading = 0xe0, kGunReloadTimer = 0xf0, kGunReloadTime = 0xd0,
-                 kGunReloadFactor = 0xfc;
-uintptr_t g_gunVt;
-float& gunFloat(void* gun, size_t off) { return *reinterpret_cast<float*>(static_cast<char*>(gun) + off); }
+// The vehicle's abilities - the buttons of its command panel: a hash map in its AiFacet (g_abilitiesAt, +0xf0 in
+// GOG), ability id -> {id, float, float, enabled}; AiFacet::update refreshes it every frame (0x129ff0) and the
+// lookup is g_abilityLookup(map, &result, &id) -> result[0] the node, +0x1c its "enabled" byte. F4 is ability 7
+// (Pack: deploy / pack up).
+using AbilityLookupFn = void** (*)(void* map, void* result, const int* id);
+AbilityLookupFn g_abilityLookup;
+size_t g_abilitiesAt;
+constexpr int kAbilityPack = 7;
+constexpr size_t kAbilityEnabled = 0x1c;
 
-// The vehicle's gun that has `ammo` (an ammunition row) loaded: its gunner ([cache+0x38]) keeps its guns in a vector
-// (slot 27 +0xd8 - how many, slot 29 +0xe8 - the i-th).
-void* gunLoading(void* vehicle, void* ammo) {
-    void* gunner = field(cacheOf(vehicle), 0x38);
-    if (!gunner || !ammo) return nullptr;
-    size_t n = vcall<size_t>(gunner, 0xd8);
-    for (size_t i = 0; i < n && i < 64; ++i) {
-        void* gun = vcall<void*>(gunner, 0xe8, i);
-        if (gun && *static_cast<uintptr_t*>(gun) == g_gunVt && field(gun, kGunAmmo) == ammo) return gun;
-    }
-    return nullptr;
+// Turn the vehicle's F4 button off until the next refresh (the next frame).
+void disableF4(void* ai) {
+    void* result[2] = {};
+    int id = kAbilityPack;
+    void** r = g_abilityLookup(static_cast<char*>(ai) + g_abilitiesAt, result, &id);
+    if (r && *r) *(static_cast<uint8_t*>(*r) + kAbilityEnabled) = 0;
 }
 
 // The vehicle's ammunition depot (its AiFacet +0x1c8) and its entry `name`; nullptr - none / not carried (a vehicle
@@ -242,10 +238,6 @@ DepotEntry* depotEntry(void* depot, const std::string& name) {
     for (DepotEntry* k = e->begin; k != e->end; ++k)
         if (name == k->name.c_str()) return k;
     return nullptr;
-}
-void* ammoRow(void* vehicle, const std::string& name) {
-    DepotEntry* k = depotEntry(depotOf(vehicle), name);
-    return k ? k->ammo : nullptr;
 }
 std::unordered_map<core::Vehicle*, Known> g_known;
 int g_events = 0;
@@ -299,33 +291,6 @@ public:
 
     // The vehicle is alive here: this runs from its own AiFacet update.
     void pack(core::Vehicle* v) override { g_pack(entity(v)); }
-
-    // The kit launcher "reloads" for the length of the cooldown: the ammo panel shows reload progress. Held short of
-    // the end (a finished reload would load a kit from the depot) and released when the cooldown is over. Runs from
-    // the vehicle's own AiFacet update, so the vehicle and its guns are alive.
-    void showCooldown(core::Vehicle* v, const core::SpawnConfig& c, float left) override {
-        auto it = g_known.find(v);
-        if (it == g_known.end() || c.ammo.empty()) return;
-        Known& k = it->second;
-        if (!k.looked) {
-            k.looked = true;
-            k.launcher = gunLoading(entity(v), ammoRow(entity(v), c.ammo));
-            if (g_logEvents)
-                g_log("'%s': kit launcher %s (reload time %.1f s)", k.name.c_str(), k.launcher ? "found" : "NOT found",
-                      k.launcher ? gunFloat(k.launcher, kGunReloadTime) * gunFloat(k.launcher, kGunReloadFactor) : 0.0f);
-        }
-        void* gun = k.launcher;
-        if (!gun) return;
-        float total = gunFloat(gun, kGunReloadTime) * gunFloat(gun, kGunReloadFactor);
-        if (left <= 0 || total <= 1.0f) {
-            *(static_cast<uint8_t*>(gun) + kGunReloading) = 0;
-            gunFloat(gun, kGunReloadTimer) = 0;
-            return;
-        }
-        *(static_cast<uint8_t*>(gun) + kGunReloading) = 1;
-        float done = (1 - left) * total, hold = total - 0.5f;
-        gunFloat(gun, kGunReloadTimer) = done < hold ? done : hold;
-    }
 
     void event(const char* what, core::Vehicle* v, SquadId s) override {
         if (!g_logEvents || g_events >= 200) return;
@@ -422,12 +387,16 @@ void* hookStateDtor(void* state, unsigned flags) {
     return g_origStateDtor(state, flags);
 }
 
-// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock.
+// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock. The original has just refreshed the
+// vehicle's abilities; while its cooldown runs, F4 is turned off again.
 void hookAiUpdate(void* ai, float dt) {
     g_origAiUpdate(ai, dt);
     void* e = ownerOf(ai);
     if (!e || !g_tracked.count(e)) return;
-    guarded("tick", [&] { g_spawner.onTick(handle(e), dt); });
+    guarded("tick", [&] {
+        g_spawner.onTick(handle(e), dt);
+        if (g_spawner.f4Blocked(handle(e))) disableF4(ai);
+    });
 }
 
 // ---------------------------------------------------------------- finding
@@ -456,6 +425,14 @@ constexpr const char* kSigPackCall =
     "E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 49 8B 0E 48 85 C9 74 09 48 8B 49 10 48 85 C9 75 03 48 8B CF E8 ?? ?? ?? ??";
 constexpr size_t kPackCall = 0x44;
 constexpr const char* kProloguePack = "40 56 57 48 83 EC 38 48 8B 01 48 8B F9 FF 90 B0 00 00 00 48 8B 70 28";
+// The abilities refresh (0x129ff0) setting F4's "enabled": "id = 7; call lookup(r14 = the map, &result, &id);
+// [result][+0x1c] = bl". The map is the AiFacet field r14 was loaded with: "lea r14, [rdi + disp32]" before it.
+constexpr const char* kSigPackAbility =
+    "4C 8D 45 67 C7 45 67 07 00 00 00 48 8D 55 F7 49 8B CE E8 ?? ?? ?? ?? 4C 8D 45 67 45 32 FF 48 8D 55 F7 48 8B 08 "
+    "88 59 1C";
+constexpr size_t kAbilityLookupCall = 0x12, kAbilityMapLeaWithin = 0x600;
+constexpr const char* kSigAbilityMapLea = "4C 8D B7 ?? ?? ?? ??";
+constexpr const char* kPrologueAbilityLookup = "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 54 41 55";
 
 struct Addr {
     uintptr_t stateVt, aiVt, utilsVt;
@@ -468,10 +445,9 @@ bool resolve(const Image& img, Addr& a) {
     a.stateVt = img.vtableOf("AiDoRechargeState@Leonardo");
     a.aiVt = img.vtableOf("AiFacet@Leonardo");
     a.utilsVt = img.vtableOf("LogicUtilsImpl@Leonardo");
-    g_gunVt = img.vtableOf("Gun@Leonardo");
-    g_log("vtables: AiDoRechargeState %08X AiFacet %08X LogicUtilsImpl %08X Gun %08X", a.stateVt ? img.rva(a.stateVt) : 0,
-          a.aiVt ? img.rva(a.aiVt) : 0, a.utilsVt ? img.rva(a.utilsVt) : 0, g_gunVt ? img.rva(g_gunVt) : 0);
-    if (!a.stateVt || !a.aiVt || !a.utilsVt) return false;  // no Gun vtable - only the cooldown is not shown
+    g_log("vtables: AiDoRechargeState %08X AiFacet %08X LogicUtilsImpl %08X", a.stateVt ? img.rva(a.stateVt) : 0,
+          a.aiVt ? img.rva(a.aiVt) : 0, a.utilsVt ? img.rva(a.utilsVt) : 0);
+    if (!a.stateVt || !a.aiVt || !a.utilsVt) return false;
 
     uintptr_t wrapper = *reinterpret_cast<uintptr_t*>(a.utilsVt + 8 * kSlotSpawnWrapper);
     if (Image::matches(wrapper, kSpawnWrapper)) {
@@ -489,10 +465,22 @@ bool resolve(const Image& img, Addr& a) {
         g_pack = reinterpret_cast<PackFn>(Image::ripTarget(pack[0] + kPackCall, 1, 5));
         if (!Image::matches(reinterpret_cast<uintptr_t>(g_pack), kProloguePack)) g_pack = nullptr;
     }
-    g_log("functions: spawn %08X (context %08X), self-detonate %08X (%zu calls), pack %08X (%zu calls)",
+    auto ability = img.find(kSigPackAbility);
+    if (ability.size() == 1) {
+        g_abilityLookup = reinterpret_cast<AbilityLookupFn>(Image::ripTarget(ability[0] + kAbilityLookupCall, 1, 5));
+        if (!Image::matches(reinterpret_cast<uintptr_t>(g_abilityLookup), kPrologueAbilityLookup))
+            g_abilityLookup = nullptr;
+        for (uintptr_t p = ability[0]; p > ability[0] - kAbilityMapLeaWithin; --p)  // the nearest lea r14 before it
+            if (Image::matches(p, kSigAbilityMapLea)) {
+                g_abilitiesAt = *reinterpret_cast<const uint32_t*>(p + 3);
+                break;
+            }
+    }
+    g_log("functions: spawn %08X (context %08X), self-detonate %08X (%zu calls), pack %08X (%zu calls), "
+          "ability lookup %08X (%zu calls, abilities at AiFacet+%zX)",
           rvaOf(img, (void*)g_spawn), rvaOf(img, g_spawnCtx), rvaOf(img, (void*)g_detonate), det.size(),
-          rvaOf(img, (void*)g_pack), pack.size());
-    return g_spawn && g_detonate && g_pack;
+          rvaOf(img, (void*)g_pack), pack.size(), rvaOf(img, (void*)g_abilityLookup), ability.size(), g_abilitiesAt);
+    return g_spawn && g_detonate && g_pack && g_abilityLookup && g_abilitiesAt;
 }
 
 }  // namespace

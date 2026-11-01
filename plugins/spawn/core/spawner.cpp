@@ -13,7 +13,7 @@ void Spawner::onDeployed(Vehicle* v) {
         it->second.config = c;
     }
     VehicleState& s = it->second;
-    s.deployed = true;
+    s.deployed = s.inF4 = true;
     port_.event("deployed", v, s.squad);
     if (!s.squad && s.cooldown <= 0) trySpawn(v, s, *s.config);
 }
@@ -22,7 +22,7 @@ void Spawner::onPacked(Vehicle* v) {
     auto it = vehicles_.find(v);
     if (it == vehicles_.end()) return;
     VehicleState& s = it->second;
-    s.deployed = false;
+    s.deployed = s.inF4 = false;
     if (!s.squad) return;
     if (port_.alive(v, s.squad)) {
         port_.kill(v, s.squad);
@@ -44,13 +44,6 @@ void Spawner::onTick(Vehicle* v, float dt) {
     if (it == vehicles_.end()) return;
     VehicleState& s = it->second;
     if (s.cooldown > 0) s.cooldown = s.cooldown > dt ? s.cooldown - dt : 0;
-    if (s.cooldown > 0 && s.config->cooldown > 0) {
-        port_.showCooldown(v, *s.config, s.cooldown / s.config->cooldown);
-        s.shown = true;
-    } else if (s.shown) {
-        port_.showCooldown(v, *s.config, 0);
-        s.shown = false;
-    }
     if (!s.deployed) return;
     if (s.squad && !port_.alive(v, s.squad)) {
         port_.event("squad lost: packing up", v, s.squad);
@@ -61,6 +54,11 @@ void Spawner::onTick(Vehicle* v, float dt) {
         return;
     }
     if (!s.squad && s.cooldown <= 0) trySpawn(v, s, *s.config);
+}
+
+bool Spawner::f4Blocked(Vehicle* v) const {
+    auto it = vehicles_.find(v);
+    return it != vehicles_.end() && !it->second.inF4 && it->second.cooldown > 0;
 }
 
 const VehicleState* Spawner::state(Vehicle* v) const {

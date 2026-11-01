@@ -60,8 +60,6 @@ public:
         killed.push_back(s);
     }
     void pack(Vehicle* v) override { packed.push_back(v); }
-    std::vector<float> shown;  // every showCooldown, in order
-    void showCooldown(Vehicle*, const SpawnConfig&, float left) override { shown.push_back(left); }
     void event(const char* what, Vehicle*, SquadId) override { events.push_back(what); }
 };
 
@@ -122,21 +120,28 @@ TEST_CASE("the cooldown runs while packed up; redeploying after it spawns again"
     CHECK(f.kits() == 3);
 }
 
-TEST_CASE("the cooldown is shown while it runs and cleared once when it is over") {
+TEST_CASE("F4 is off while the cooldown runs, and only then") {
+    Fixture f;
+    CHECK_FALSE(f.spawner.f4Blocked(f.van));  // never deployed
+    f.spawner.onDeployed(f.van);
+    CHECK_FALSE(f.spawner.f4Blocked(f.van));  // deployed, squad out: the player may pack up
+    f.spawner.onPacked(f.van);
+    CHECK(f.spawner.f4Blocked(f.van));
+    f.spawner.onTick(f.van, 59.0f);
+    CHECK(f.spawner.f4Blocked(f.van));
+    f.spawner.onTick(f.van, 1.0f);
+    CHECK_FALSE(f.spawner.f4Blocked(f.van));
+    CHECK_FALSE(f.spawner.f4Blocked(handle(9)));  // not ours
+}
+
+TEST_CASE("a squad lost in battle blocks F4 once its vehicle has packed up") {
     Fixture f;
     f.spawner.onDeployed(f.van);
-    f.spawner.onTick(f.van, 1.0f);
-    CHECK(f.port.shown.empty());  // no cooldown yet
+    f.port.living.clear();
+    f.spawner.onTick(f.van, 0.1f);  // lost: pack-up ordered
+    CHECK_FALSE(f.spawner.f4Blocked(f.van));  // the pack-up is under way: F4 as the game has it
     f.spawner.onPacked(f.van);
-    f.spawner.onTick(f.van, 15.0f);
-    f.spawner.onTick(f.van, 30.0f);
-    REQUIRE(f.port.shown.size() == 2);
-    CHECK(f.port.shown[0] == doctest::Approx(0.75));
-    CHECK(f.port.shown[1] == doctest::Approx(0.25));
-    f.spawner.onTick(f.van, 20.0f);  // over
-    f.spawner.onTick(f.van, 1.0f);
-    REQUIRE(f.port.shown.size() == 3);
-    CHECK(f.port.shown[2] == 0);
+    CHECK(f.spawner.f4Blocked(f.van));
 }
 
 TEST_CASE("a squad lost in battle packs its vehicle up and starts the cooldown") {
