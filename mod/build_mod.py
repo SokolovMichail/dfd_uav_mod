@@ -66,12 +66,15 @@ SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # fact
 
 # F4's button layout with a progress bar added: the Spawn Framework fills it while a vehicle's cooldown runs (and
 # keeps it hidden otherwise), the way the timer abilities' buttons (rush.txt) show theirs. The game's pack.txt has
-# only the two buttons. The bar is drawn over them and takes no clicks. Its pictures - the unpack icon and a dim
-# grey copy over the part of the wait still to go - are made from the game's icon by art/make_cooldown_icons.py
-# (F4 has no cooldown pictures of its own). Framework files: they change every F4 button (the bar shows only for the
+# only the two buttons. The bar is drawn over them and takes no clicks. Its pictures are new files of the mod (the
+# game's are only read): F4's button with the swarm drones' unit icon in place of its box (art/make_uav_button.py),
+# and a dim grey copy of it over the part of the wait still to go (art/make_cooldown_icons.py - the recipe of the
+# game's own timer buttons). Framework files: pack.txt changes every F4 button (the bar shows only for the
 # framework's vehicles); later they belong in a framework mini-mod.
 PACK_LAYOUT = 'scripts/ui/AbilityButtons/pack.txt'
 UNPACK_ICON = 'textures/ui/pictures/Main/buttons2/buttons_unpack_n.dds'
+DRONES_ICON = 'textures/ui/pictures/tech_pic/infantry_icons_big/lgn_drones.dds'
+COOLDOWN_PICTURES = 'textures/ui/pictures/Main/buttons2/uav_spawn_cooldown_{}.dds'
 PACK_PROGRESS_BAR = [
     'progress_bar\tprogress_bar\t 0, 0, 76, 76\t\torder_unpack\t\t',
     '\t\t\t\t\ttooltip_type\tsimple',
@@ -81,8 +84,8 @@ PACK_PROGRESS_BAR = [
     '\t\t\t\t\tindent_tb\tindent_top 0 indent_bottom 0',
     '\t\t\t\t\tindent_lr\tindent_left 0 indent_right 0',
     '\t\t\t\t\tis_interactable\tfalse',
-    '\t\t\t\t\timage\tmain\\buttons2\\buttons_unpack_cooldown_n.dds',
-    '\t\t\t\t\tprogress_image\tmain\\buttons2\\buttons_unpack_cooldown_o.dds',
+    '\t\t\t\t\timage\tmain\\buttons2\\uav_spawn_cooldown_n.dds',
+    '\t\t\t\t\tprogress_image\tmain\\buttons2\\uav_spawn_cooldown_o.dds',
     '\t\t\t\t\tdirection\tvertical',
     '\t\t\t\t\tfont\tarial10b.fnt',
     '\t\t\t\t\tcolor\t0xffFFFFFF',
@@ -153,12 +156,14 @@ def main():
     with open(out_layout, 'w', encoding='utf-8', newline='') as f:
         f.write(layout)
     print(f'{PACK_LAYOUT}: + progress_bar')
-    icons = os.path.join(a.out, 'basis', *os.path.dirname(UNPACK_ICON).split('/'))
-    os.makedirs(icons, exist_ok=True)
-    env = dict(os.environ, PYTHONIOENCODING='utf-8')
-    subprocess.run([sys.executable, os.path.join(HERE, 'art', 'make_cooldown_icons.py'), S('base', UNPACK_ICON),
-                    os.path.join(icons, 'buttons_unpack_cooldown_n.dds'),
-                    os.path.join(icons, 'buttons_unpack_cooldown_o.dds')], check=True, env=env)
+    art = lambda script, *args: subprocess.run(  # noqa: E731
+        [sys.executable, os.path.join(HERE, 'art', script), *args], check=True,
+        env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+    pictures = [os.path.join(a.out, 'basis', *COOLDOWN_PICTURES.format(k).split('/')) for k in 'no']
+    os.makedirs(os.path.dirname(pictures[0]), exist_ok=True)
+    uav_button = os.path.join(cache, 'uav_spawn_button.dds')  # not shipped: only its cooldown pair is
+    art('make_uav_button.py', S('base', UNPACK_ICON), S('base', DRONES_ICON), uav_button)
+    art('make_cooldown_icons.py', uav_button, *pictures)
 
     print('== names')
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
