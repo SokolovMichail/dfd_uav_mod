@@ -68,15 +68,20 @@ add_custom_target(mod
 # DefianceLoader build of the plugin if it is there (both at once do not work), and the probe. bin\winhttp.dll is
 # left as it is: the game's is already a loader of bin\plugins\*.dll - ours, or another program's (the trainer's).
 # deploy_with_loader - the same plus our loader, bin\winhttp.dll (it replaces the one there).
+# deploy_defiance - the DefianceLoader build instead (DefianceLoader must be installed): spawn_framework.dll and its
+# manifest into DefianceLoader\plugins; removes the standalone bin\plugins\SpawnFramework.dll. Switch between the two
+# with these targets.
+set(DEPLOY_MOD  # shared by all three: the probe out, the example mod in
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnProbe.dll" "${GAME_DIR}/bin/plugins/SpawnProbe.ini"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/SpawnProbe"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/Patchwork_UAV")
 set(DEPLOY_PLUGIN_AND_MOD
         COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.dll"
                 "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.plugin.json"
-                "${GAME_DIR}/bin/plugins/SpawnProbe.dll" "${GAME_DIR}/bin/plugins/SpawnProbe.ini"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/SpawnProbe"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin/plugins"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:SpawnFramework> "${GAME_DIR}/bin/plugins/"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/Patchwork_UAV")
+        ${DEPLOY_MOD})
 add_custom_target(deploy
         ${DEPLOY_PLUGIN_AND_MOD}
         DEPENDS SpawnFramework mod
@@ -88,6 +93,15 @@ add_custom_target(deploy_with_loader
         ${DEPLOY_PLUGIN_AND_MOD}
         DEPENDS winhttp SpawnFramework mod
         COMMENT "Install winhttp.dll, SpawnFramework.dll and mods\\Patchwork_UAV into ${GAME_DIR}"
+        VERBATIM)
+add_custom_target(deploy_defiance
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnFramework.dll"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/DefianceLoader/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:spawn_framework>
+                "${CMAKE_CURRENT_BINARY_DIR}/spawn_framework.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"
+        ${DEPLOY_MOD}
+        DEPENDS spawn_framework mod
+        COMMENT "Install the DefianceLoader plugin spawn_framework.dll and mods\\Patchwork_UAV into ${GAME_DIR}"
         VERBATIM)
 
 # ---- Phase 0 probe (bin\plugins\SpawnProbe.dll) and its test vehicle (mods\SpawnProbe)
