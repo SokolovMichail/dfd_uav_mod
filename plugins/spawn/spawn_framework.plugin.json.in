@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DefianceLoader/DefianceLoader/v1.9.0/schema/plugin.schema.json",
+  "schema": 1,
+  "id": "sokolov.spawn-framework",
+  "dll": "spawn_framework.dll",
+  "version": "@MOD_VERSION@",
+  "abi": 5,
+  "group": "spawn-framework",
+  "hot_reload": false,
+  "patch_contract": true,
+  "multiplayer_safe": false,
+  "settings": [
+    {
+      "key": "enabled",
+      "type": "bool",
+      "default": "true",
+      "description": "Spawn Framework: a vehicle deployed in F4 mode keeps a squad of its own next to it (for mods made on the framework, such as Patchwork UAV). Restart required."
+    },
+    {
+      "key": "log",
+      "type": "bool",
+      "default": "true",
+      "description": "Write deploys, spawns and kills of the framework's vehicles to the loader log, for bug reports. Restart required."
+    }
+  ],
+  "depends": [{ "id": "defiance.core" }],
+  "conflicts": []
+}
