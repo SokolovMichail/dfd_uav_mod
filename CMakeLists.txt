@@ -65,18 +65,28 @@ add_custom_target(mod
 
 # ---- deploy: the standalone plugin and the example mod into the game (the game must be closed). Removes the
 # DefianceLoader build of the plugin if it is there (both at once do not work), and the probe.
-add_custom_target(deploy
+# deploy_no_loader - the same without bin\winhttp.dll: for a game whose winhttp.dll is already the loader (or is
+# another program's, e.g. a trainer's, that loads bin\plugins\*.dll itself); the one there is left as it is.
+set(DEPLOY_PLUGIN_AND_MOD
         COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.dll"
                 "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.plugin.json"
                 "${GAME_DIR}/bin/plugins/SpawnProbe.dll" "${GAME_DIR}/bin/plugins/SpawnProbe.ini"
         COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/SpawnProbe"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin/plugins"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:winhttp> "${GAME_DIR}/bin/"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:SpawnFramework> "${GAME_DIR}/bin/plugins/"
         COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/Patchwork_UAV"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/Patchwork_UAV")
+add_custom_target(deploy
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:winhttp> "${GAME_DIR}/bin/"
+        ${DEPLOY_PLUGIN_AND_MOD}
         DEPENDS winhttp SpawnFramework mod
-        COMMENT "Install SpawnFramework.dll and mods\\Patchwork_UAV into ${GAME_DIR}"
+        COMMENT "Install winhttp.dll, SpawnFramework.dll and mods\\Patchwork_UAV into ${GAME_DIR}"
+        VERBATIM)
+add_custom_target(deploy_no_loader
+        ${DEPLOY_PLUGIN_AND_MOD}
+        DEPENDS SpawnFramework mod
+        COMMENT "Install SpawnFramework.dll and mods\\Patchwork_UAV into ${GAME_DIR} (bin\\winhttp.dll left as it is)"
         VERBATIM)
 
 # ---- Phase 0 probe (bin\plugins\SpawnProbe.dll) and its test vehicle (mods\SpawnProbe)
