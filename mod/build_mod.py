@@ -31,8 +31,9 @@ from gamefiles import Game  # noqa: E402
 
 KIT = 'uav_kit'
 KITS = 5
-# The F4 button (a supply component that hands out nothing: the framework hangs the deploy on it).
-F4 = ['abilities=ammunition_recharge', 'capacity_ammo_recharger=0']
+# The F4 button (a supply component that hands out nothing: the framework hangs the deploy on it), and deploy_unit -
+# the Spawn Framework's switch: only vehicles whose abilities name it are the framework's (the game ignores the name).
+F4 = ['abilities=ammunition_recharge,deploy_unit', 'capacity_ammo_recharger=0']
 # A recon drone: a swarm scout alone, no corpse, a small blast when it dies (its van packs up) - the bomb drones'
 # death effect, a tenth of their blast.
 DRONE = ['explode_damage=1-2:he30', 'explode_splash_radius=2', 'destroy_effect=destruction_swarm_explosive']

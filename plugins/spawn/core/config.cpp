@@ -96,13 +96,26 @@ std::string cell(const std::vector<std::string>& row, int col) {
     return col >= 0 && static_cast<size_t>(col) < row.size() ? row[col] : std::string();
 }
 
+// Does a comma-separated list (an abilities cell) name `name`? Spaces around the names are ignored.
+bool names(const std::string& list, const char* name) {
+    size_t pos = 0;
+    for (;;) {
+        size_t end = std::min(list.find(',', pos), list.size());
+        std::string item = list.substr(pos, end - pos);
+        size_t a = item.find_first_not_of(" \t"), b = item.find_last_not_of(" \t");
+        if (a != std::string::npos && item.substr(a, b - a + 1) == name) return true;
+        if (end == list.size()) return false;
+        pos = end + 1;
+    }
+}
+
 }  // namespace
 
 int readSpawnColumns(const std::string& x, SpawnTable& into) {
     size_t table = x.find("<Table"), tableEnd = x.find("</Table>");
     if (table == std::string::npos || tableEnd == std::string::npos) return 0;
     std::vector<std::string> header;
-    int sysname = -1, squad = -1, ammo = -1, cooldown = -1, added = 0;
+    int sysname = -1, abilities = -1, squad = -1, ammo = -1, cooldown = -1, added = 0;
     size_t pos = table;
     for (;;) {
         size_t r = x.find("<Row", pos);
@@ -121,14 +134,15 @@ int readSpawnColumns(const std::string& x, SpawnTable& into) {
             sysname = column(cells, "sysname");
             if (sysname < 0) continue;  // rows above the header
             header = cells;
+            abilities = column(header, "abilities");
             squad = column(header, "spawn_squad");
             ammo = column(header, "spawn_ammo");
             cooldown = column(header, "spawn_cooldown");
-            if (squad < 0) return 0;  // not a table of ours
+            if (squad < 0 || abilities < 0) return 0;  // not a table of ours
             continue;
         }
         std::string name = cell(cells, sysname), s = cell(cells, squad);
-        if (name.empty() || name[0] == '#' || s.empty()) continue;
+        if (name.empty() || name[0] == '#' || s.empty() || !names(cell(cells, abilities), kAbility)) continue;
         SpawnConfig c;
         c.squad = s;
         c.ammo = cell(cells, ammo);

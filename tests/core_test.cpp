@@ -274,16 +274,19 @@ TEST_CASE("each vehicle has its own squad and cooldown") {
 namespace {
 
 // A SpreadsheetML table as the game's are written: a title row above the header, sparse cells, a comment row.
+// Columns: 1 sysname, 2 mass, 3 abilities, 4 spawn_squad, 5 spawn_ammo, 6 spawn_cooldown.
 const char* kTable = R"(<?xml version="1.0"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
  <Worksheet ss:Name="cars">
   <Table ss:ExpandedColumnCount="6">
    <Row><Cell><Data ss:Type="String">vehicles</Data></Cell></Row>
-   <Row ss:Index="3"><Cell><Data ss:Type="String">sysname</Data></Cell><Cell><Data ss:Type="String">mass</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">spawn_squad</Data></Cell><Cell><Data ss:Type="String">spawn_ammo</Data></Cell><Cell><Data ss:Type="String">spawn_cooldown</Data></Cell></Row>
+   <Row ss:Index="3"><Cell><Data ss:Type="String">sysname</Data></Cell><Cell><Data ss:Type="String">mass</Data></Cell><Cell><Data ss:Type="String">abilities</Data></Cell><Cell><Data ss:Type="String">spawn_squad</Data></Cell><Cell><Data ss:Type="String">spawn_ammo</Data></Cell><Cell><Data ss:Type="String">spawn_cooldown</Data></Cell></Row>
    <Row><Cell><Data ss:Type="String">Res_van</Data></Cell><Cell><Data ss:Type="Number">2500</Data></Cell></Row>
-   <Row><Cell><Data ss:Type="String">Res_patchwork_van</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">Res_patchwork_uav</Data></Cell><Cell><Data ss:Type="String">uav_kit</Data></Cell><Cell><Data ss:Type="Number">45</Data></Cell></Row>
-   <Row><Cell><Data ss:Type="String">Int_recon_van</Data></Cell><Cell ss:Index="4"><Data ss:Type="String"><Font>Int_recon_uav</Font></Data></Cell></Row>
-   <Row><Cell><Data ss:Type="String">#Res_old_van</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">Lgn_swarm</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">Res_patchwork_van</Data></Cell><Cell ss:Index="3"><Data ss:Type="String">ammunition_recharge, deploy_unit</Data></Cell><Cell><Data ss:Type="String">Res_patchwork_uav</Data></Cell><Cell><Data ss:Type="String">uav_kit</Data></Cell><Cell><Data ss:Type="Number">45</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">Int_recon_van</Data></Cell><Cell ss:Index="3"><Data ss:Type="String">deploy_unit</Data></Cell><Cell><Data ss:Type="String"><Font>Int_recon_uav</Font></Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">Res_no_switch_van</Data></Cell><Cell ss:Index="3"><Data ss:Type="String">ammunition_recharge</Data></Cell><Cell><Data ss:Type="String">Lgn_swarm</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">Res_lookalike_van</Data></Cell><Cell ss:Index="3"><Data ss:Type="String">deploy_unit_x</Data></Cell><Cell><Data ss:Type="String">Lgn_swarm</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">#Res_old_van</Data></Cell><Cell ss:Index="3"><Data ss:Type="String">deploy_unit</Data></Cell><Cell><Data ss:Type="String">Lgn_swarm</Data></Cell></Row>
    <Row/>
    <Row><Cell ss:Index="1"/><Cell><Data ss:Type="String">no sysname</Data></Cell></Row>
   </Table>
@@ -292,6 +295,15 @@ const char* kTable = R"(<?xml version="1.0"?>
 )";
 
 }  // namespace
+
+TEST_CASE("only vehicles whose abilities name deploy_unit are the framework's") {
+    SpawnTable t;
+    readSpawnColumns(kTable, t);
+    CHECK(t.count("Res_no_switch_van") == 0);  // spawn_squad, but no deploy_unit
+    CHECK(t.count("Res_lookalike_van") == 0);  // a longer name is not deploy_unit
+    CHECK(t.count("Res_patchwork_van") == 1);  // deploy_unit among others, with spaces
+    CHECK(t.count("Int_recon_van") == 1);      // deploy_unit alone
+}
 
 TEST_CASE("the framework's columns are read from a vehicle table") {
     SpawnTable t;
@@ -313,16 +325,24 @@ TEST_CASE("a table without the framework's columns adds nothing") {
     CHECK(readSpawnColumns("<Table><Row><Cell><Data>sysname</Data></Cell><Cell><Data>mass</Data></Cell></Row>"
                            "<Row><Cell><Data>Res_van</Data></Cell></Row></Table>",
                            t) == 0);
+    // spawn_squad without an abilities column: nothing names deploy_unit
+    CHECK(readSpawnColumns("<Table><Row><Cell><Data>sysname</Data></Cell><Cell><Data>spawn_squad</Data></Cell></Row>"
+                           "<Row><Cell><Data>Van</Data></Cell><Cell><Data>A</Data></Cell></Row></Table>",
+                           t) == 0);
     CHECK(t.empty());
     CHECK(readSpawnColumns("not a table", t) == 0);
 }
 
 TEST_CASE("a later table replaces a vehicle's row; entities are decoded") {
     SpawnTable t;
-    const char* a = "<Table><Row><Cell><Data>sysname</Data></Cell><Cell><Data>spawn_squad</Data></Cell></Row>"
-                    "<Row><Cell><Data>Van</Data></Cell><Cell><Data>A</Data></Cell></Row></Table>";
-    const char* b = "<Table><Row><Cell><Data>sysname</Data></Cell><Cell><Data>spawn_squad</Data></Cell></Row>"
-                    "<Row><Cell><Data>Van</Data></Cell><Cell><Data>B&amp;C</Data></Cell></Row></Table>";
+    const char* a = "<Table><Row><Cell><Data>sysname</Data></Cell><Cell><Data>abilities</Data></Cell>"
+                    "<Cell><Data>spawn_squad</Data></Cell></Row>"
+                    "<Row><Cell><Data>Van</Data></Cell><Cell><Data>deploy_unit</Data></Cell><Cell><Data>A</Data></Cell>"
+                    "</Row></Table>";
+    const char* b = "<Table><Row><Cell><Data>sysname</Data></Cell><Cell><Data>abilities</Data></Cell>"
+                    "<Cell><Data>spawn_squad</Data></Cell></Row>"
+                    "<Row><Cell><Data>Van</Data></Cell><Cell><Data>deploy_unit</Data></Cell><Cell><Data>B&amp;C</Data>"
+                    "</Cell></Row></Table>";
     readSpawnColumns(a, t);
     readSpawnColumns(b, t);
     CHECK(t["Van"].squad == "B&C");
