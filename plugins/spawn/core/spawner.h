@@ -4,8 +4,9 @@
 //     squad (spawn_squad); no kit left - nothing. A vehicle without spawn_ammo spawns without spending anything.
 //   - One squad alive per vehicle at a time.
 //   - The squad dies when the vehicle leaves F4 mode for whatever reason (packing up, destroyed, another order).
+//   - A squad lost in battle packs its vehicle up: the vehicle leaves F4 mode by itself.
 //   - After the squad dies - killed in battle or with its vehicle's pack-up - the vehicle waits spawn_cooldown
-//     seconds of game time before the next one.
+//     seconds of game time before the next one (deployed again before that, it spawns when the cooldown is over).
 //
 // The core never touches game memory: it sees the game through SpawnPort, and vehicles are opaque handles.
 #pragma once
@@ -36,6 +37,8 @@ public:
     virtual bool alive(Vehicle* v, SquadId s) = 0;
     // Kill the squad (its soldiers die as if hit).
     virtual void kill(Vehicle* v, SquadId s) = 0;
+    // Order the vehicle out of F4 mode, as the player's F4 does. The game ends F4 mode later (onPacked follows).
+    virtual void pack(Vehicle* v) = 0;
     // Report a notable event (the binding decides how to log it).
     virtual void event(const char* what, Vehicle* v, SquadId s) = 0;
 };

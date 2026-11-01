@@ -46,9 +46,12 @@ void Spawner::onTick(Vehicle* v, float dt) {
     if (s.cooldown > 0) s.cooldown = s.cooldown > dt ? s.cooldown - dt : 0;
     if (!s.deployed) return;
     if (s.squad && !port_.alive(v, s.squad)) {
-        port_.event("squad lost", v, s.squad);
+        port_.event("squad lost: packing up", v, s.squad);
         s.squad = 0;
         s.cooldown = s.config->cooldown;
+        s.deployed = false;  // no spawn until the game ends F4 mode and the vehicle deploys again
+        port_.pack(v);
+        return;
     }
     if (!s.squad && s.cooldown <= 0) trySpawn(v, s, *s.config);
 }

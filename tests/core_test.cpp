@@ -34,6 +34,7 @@ public:
     std::set<SquadId> living;
     std::vector<std::string> spawned, events;
     std::vector<SquadId> killed;
+    std::vector<Vehicle*> packed;  // pack orders given
     SquadId next = 100;
     bool spawnFails = false;
 
@@ -58,6 +59,7 @@ public:
         living.erase(s);
         killed.push_back(s);
     }
+    void pack(Vehicle* v) override { packed.push_back(v); }
     void event(const char* what, Vehicle*, SquadId) override { events.push_back(what); }
 };
 
@@ -118,15 +120,36 @@ TEST_CASE("the cooldown runs while packed up; redeploying after it spawns again"
     CHECK(f.kits() == 3);
 }
 
-TEST_CASE("a squad lost in battle is replaced after the cooldown, while deployed") {
+TEST_CASE("a squad lost in battle packs its vehicle up and starts the cooldown") {
     Fixture f;
     f.spawner.onDeployed(f.van);
     f.port.living.clear();  // shot down
     f.spawner.onTick(f.van, 0.1f);
     CHECK(f.squad() == 0);
-    f.spawner.onTick(f.van, 59.0f);
+    CHECK(f.port.packed == std::vector<Vehicle*>{f.van});
+    CHECK(f.spawner.state(f.van)->cooldown == doctest::Approx(60));
+    // until the game ends F4 mode the vehicle spawns nothing, even after the cooldown
+    f.spawner.onTick(f.van, 100.0f);
     CHECK(f.port.spawned.size() == 1);
-    f.spawner.onTick(f.van, 1.0f);
+    CHECK(f.port.packed.size() == 1);  // asked once
+    f.spawner.onPacked(f.van);         // the game ends F4 mode: nothing left to kill
+    CHECK(f.port.killed.empty());
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.size() == 2);
+}
+
+TEST_CASE("deployed again before the cooldown is over, the vehicle spawns when it is") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    f.port.living.clear();
+    f.spawner.onTick(f.van, 0.1f);  // lost: packs up
+    f.spawner.onPacked(f.van);
+    f.spawner.onTick(f.van, 20.0f);
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.size() == 1);
+    f.spawner.onTick(f.van, 39.9f);
+    CHECK(f.port.spawned.size() == 1);
+    f.spawner.onTick(f.van, 0.2f);
     CHECK(f.port.spawned.size() == 2);
 }
 
@@ -186,10 +209,17 @@ TEST_CASE("packing up after the squad died in battle kills nothing and keeps one
     Fixture f;
     f.spawner.onDeployed(f.van);
     f.port.living.clear();
-    f.spawner.onTick(f.van, 10.0f);  // noticed: cooldown 60
+    f.spawner.onTick(f.van, 10.0f);  // noticed: cooldown 60, pack-up ordered
     f.spawner.onPacked(f.van);
     CHECK(f.port.killed.empty());
     CHECK(f.spawner.state(f.van)->cooldown == doctest::Approx(60));
+}
+
+TEST_CASE("packing up on purpose orders nothing: the player's own pack-up is already under way") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    f.spawner.onPacked(f.van);
+    CHECK(f.port.packed.empty());
 }
 
 TEST_CASE("a destroyed vehicle's squad dies and the vehicle is forgotten") {

@@ -6,7 +6,9 @@ is deployed (F4). Your mod only describes the vehicle in the game's tables; no c
 - Deployed, the vehicle spawns its squad at once, if it has a kit left.
 - One squad per vehicle at a time.
 - The squad dies when the vehicle packs up, is destroyed, or leaves F4 mode for any other reason.
+- A squad lost in battle packs its vehicle up by itself.
 - After the squad dies (in battle or with its vehicle's pack-up), the vehicle waits a cooldown before the next one.
+  Deployed again before that, it spawns when the cooldown is over.
 - Each squad costs one round of the vehicle's own ammunition - the "kit". No kit left, no squad.
 
 Patchwork UAV, the framework's example mod, adds two vans that keep a recon drone in the air.

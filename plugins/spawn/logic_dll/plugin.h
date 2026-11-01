@@ -11,6 +11,8 @@
 //  * Kits: the vehicle's AmmunitionDepotHelper (its AiFacet +0x1c8): consume one round (slot 22), as firing does.
 //  * Killing: the engine's self-detonation of bomb drones (0x532f60, behind the self-detonate command): every
 //    soldier takes a lethal hit and dies as if hit, with its explode_damage and destroy_effect.
+//  * Packing up when the squad is lost: the mission action's "pack" (0x10ef50) - an AiStopRechargeOrder to the
+//    vehicle's AI, as the player's F4 gives.
 //  * What a vehicle spawns: the framework's columns of the vehicle tables of the enabled mods (tables.cpp).
 #pragma once
 

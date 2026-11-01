@@ -114,9 +114,11 @@ MsvcString msvc(const std::string& keep) {
 using SpawnFn = void* (*)(const float* pos, void* world, const MsvcString* team, const MsvcString* sysname,
                           float angle, void* ctx, void*, void*, void*, void*, void*, void*, int);
 using DetonateFn = void (*)(void* entity);
+using PackFn = void (*)(void* entity);  // give the entity's AI the order to leave F4 mode (AiStopRechargeOrder)
 SpawnFn g_spawn;
 void* g_spawnCtx;
 DetonateFn g_detonate;
+PackFn g_pack;
 
 // A component's owner (a vehicle): [component+0x10] is a reference block, its object the owner.
 void* ownerOf(void* component) { return component ? objectOf(field(component, 0x10)) : nullptr; }
@@ -261,6 +263,9 @@ public:
         release(rb);
     }
 
+    // The vehicle is alive here: this runs from its own AiFacet update.
+    void pack(core::Vehicle* v) override { g_pack(entity(v)); }
+
     void event(const char* what, core::Vehicle* v, SquadId s) override {
         if (!g_logEvents || g_events >= 200) return;
         ++g_events;
@@ -384,6 +389,12 @@ constexpr const char* kSigDetonateCall =
     "48 8B CE E8 ?? ?? ?? ??";
 constexpr size_t kDetonateCall = 0x28;
 constexpr const char* kPrologueDetonate = "48 8B C4 48 89 58 08 48 89 70 10 48 89 78 18 55 41 54 41 55 41 56 41 57";
+// The mission action that expands / packs a vehicle: "expand" - call deploy(entity, 0), else - call pack(entity).
+constexpr const char* kSigPackCall =
+    "81 38 65 78 70 61 75 28 66 81 78 04 6E 64 75 20 49 8B 0E 48 85 C9 74 09 48 8B 49 10 48 85 C9 75 03 48 8B CF 33 D2 "
+    "E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 49 8B 0E 48 85 C9 74 09 48 8B 49 10 48 85 C9 75 03 48 8B CF E8 ?? ?? ?? ??";
+constexpr size_t kPackCall = 0x44;
+constexpr const char* kProloguePack = "40 56 57 48 83 EC 38 48 8B 01 48 8B F9 FF 90 B0 00 00 00 48 8B 70 28";
 
 struct Addr {
     uintptr_t stateVt, aiVt, utilsVt;
@@ -411,9 +422,15 @@ bool resolve(const Image& img, Addr& a) {
         g_detonate = reinterpret_cast<DetonateFn>(Image::ripTarget(det[0] + kDetonateCall, 1, 5));
         if (!Image::matches(reinterpret_cast<uintptr_t>(g_detonate), kPrologueDetonate)) g_detonate = nullptr;
     }
-    g_log("functions: spawn %08X (context %08X), self-detonate %08X (%zu calls)", rvaOf(img, (void*)g_spawn),
-          rvaOf(img, g_spawnCtx), rvaOf(img, (void*)g_detonate), det.size());
-    return g_spawn && g_detonate;
+    auto pack = img.find(kSigPackCall);
+    if (pack.size() == 1) {
+        g_pack = reinterpret_cast<PackFn>(Image::ripTarget(pack[0] + kPackCall, 1, 5));
+        if (!Image::matches(reinterpret_cast<uintptr_t>(g_pack), kProloguePack)) g_pack = nullptr;
+    }
+    g_log("functions: spawn %08X (context %08X), self-detonate %08X (%zu calls), pack %08X (%zu calls)",
+          rvaOf(img, (void*)g_spawn), rvaOf(img, g_spawnCtx), rvaOf(img, (void*)g_detonate), det.size(),
+          rvaOf(img, (void*)g_pack), pack.size());
+    return g_spawn && g_detonate && g_pack;
 }
 
 }  // namespace
