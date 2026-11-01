@@ -124,15 +124,6 @@ DetonateFn g_detonate;
 PackFn g_pack;
 KillerFn g_killer;  // optional: without them a squad inside a building or a vehicle outlives its vehicle
 KillFn g_kill;
-using InfantryAiFn = void* (*)(void* soldier);  // the soldier's AiFacet as infantry AI, or nullptr (0xa3170)
-InfantryAiFn g_infantryAi;  // optional: without it a soldier inside is found only after the self-detonation
-constexpr size_t kInfantryTransport = 0x2a8;  // infantry AI: the vehicle / building it sits in (reference block)
-
-// What a soldier sits in, as the mission condition UnitLoadToTransport checks it (0x208cb0); nullptr - the open.
-void* transportOf(void* soldier) {
-    void* ai = g_infantryAi ? g_infantryAi(soldier) : nullptr;
-    return ai ? objectOf(field(ai, kInfantryTransport)) : nullptr;
-}
 
 // A component's owner (a vehicle): [component+0x10] is a reference block, its object the owner.
 void* ownerOf(void* component) { return component ? objectOf(field(component, 0x10)) : nullptr; }
@@ -257,10 +248,10 @@ DepotEntry* depotEntry(void* depot, const std::string& name) {
 std::unordered_map<core::Vehicle*, Known> g_known;
 int g_events = 0;
 
-// Squads killed a moment ago. Whoever of the squad is still there kDetonateCheckMs later - a soldier inside
-// something the transport check does not know, the self-detonation's hit does not reach him - goes into the engine's
-// kill queue, as the mission action killAction does it (in the open that death does not fall - floating bodies - so
-// it is only the second try).
+// Squads self-detonated a moment ago. The self-detonation is a lethal hit to every soldier, and a soldier inside a
+// building or a vehicle takes no hit: whoever of the squad is still there kDetonateCheckMs later goes into the
+// engine's kill queue, as the mission action killAction does it (in the open that death does not fall - floating
+// bodies - so it is only the second try).
 struct Dying {
     void* world;
     core::SquadId squad;
@@ -330,31 +321,13 @@ public:
         return live;
     }
 
-    // Soldiers in the open self-detonate; soldiers inside a vehicle or a building (where the blast would go off
-    // inside it) go silently into the kill queue.
     void kill(core::Vehicle* v, SquadId s) override {
-        void* world = knownWorld(v);
-        RefBlock* rb = entityById(world, s);
+        RefBlock* rb = entityById(knownWorld(v), s);
         if (!rb) return;
-        void* squad = rb->object;
-        std::vector<void*> soldiers = soldierList(squad), outside, inside;
-        for (void* u : soldiers) (g_kill && transportOf(u) ? inside : outside).push_back(u);
-        if (!inside.empty()) {
-            std::string where = sysnameOf(transportOf(inside[0]));
-            void* killer = g_killer(world);
-            for (void* u : inside) g_kill(killer, u);
-            g_log("squad %d: %zu soldier(s) inside '%s' - killed silently", s, inside.size(), where.c_str());
-        }
-        if (!outside.empty() || soldiers.empty()) {
-            if (void* ai = aiOf(squad)) vcall<void>(ai, 0x370, true);
-            if (inside.empty()) {
-                g_detonate(squad);
-            } else {
-                for (void* u : outside) g_detonate(u);
-            }
-        }
+        if (void* ai = aiOf(rb->object)) vcall<void>(ai, 0x370, true);
+        g_detonate(rb->object);
         release(rb);
-        if (g_killer && g_kill) g_dying.push_back({world, s, GetTickCount64() + kDetonateCheckMs});
+        if (g_killer && g_kill) g_dying.push_back({knownWorld(v), s, GetTickCount64() + kDetonateCheckMs});
     }
 
     // The vehicle is alive here: this runs from its own AiFacet update.
@@ -511,11 +484,6 @@ constexpr const char* kSigKillCall = "FF 50 78 48 8B C8 E8 ?? ?? ?? ?? 48 8B D6 
 constexpr size_t kKillerCall = 6, kKillCall = 17;
 constexpr const char* kPrologueKiller = "40 53 48 83 EC 20 65 48 8B 04 25 58 00 00 00 48 8B D9";
 constexpr const char* kPrologueKill = "48 89 5C 24 18 55 56 57 41 56 41 57 48 83 EC 40 0F 29 74 24 30 4C 8B F2";
-// UnitLoadToTransport's test (0x208cb0): "infantry AI of a soldier (call at +11); its [+0x2a8] - the transport".
-constexpr const char* kSigInfantryAiCall =
-    "48 8B 48 10 48 85 C9 75 02 33 C9 E8 ?? ?? ?? ?? 48 85 C0 74 ?? 48 8B B0 A8 02 00 00 48 85 F6";
-constexpr size_t kInfantryAiCall = 11;
-constexpr const char* kPrologueInfantryAi = "48 89 5C 24 18 57 48 83 EC 20 48 8B 01 FF 90 B0 00 00 00";
 // AiFacet slots 33 / 34 (set an ability's cooldown timer / length): both look the ability up in the table at
 // [AiFacet+0x108] - "mov r10, [rcx+0x108]; mov r9, FNV prime".
 constexpr const char* kPrologueAbilitySetter = "4C 8B 91 08 01 00 00 49 B9 B3 01 00 00 00 01 00 00";
@@ -567,13 +535,6 @@ bool resolve(const Image& img, Addr& a) {
     }
     g_log("kill queue: manager %08X queue %08X (%zu calls)%s", rvaOf(img, (void*)g_killer), rvaOf(img, (void*)g_kill),
           kills.size(), g_kill ? "" : " - not found: a squad inside a building or a vehicle outlives its vehicle");
-    auto inf = img.find(kSigInfantryAiCall);
-    if (inf.size() == 1) {
-        g_infantryAi = reinterpret_cast<InfantryAiFn>(Image::ripTarget(inf[0] + kInfantryAiCall, 1, 5));
-        if (!Image::matches(reinterpret_cast<uintptr_t>(g_infantryAi), kPrologueInfantryAi)) g_infantryAi = nullptr;
-    }
-    g_log("transport check: infantry AI %08X (%zu calls)%s", rvaOf(img, (void*)g_infantryAi), inf.size(),
-          g_infantryAi ? "" : " - not found: a squad inside blows up there, then dies 3 s later");
     auto slotOf = [&](size_t off) { return *reinterpret_cast<uintptr_t*>(a.aiVt + off); };
     bool setters = Image::matches(slotOf(kSetAbilityTimer), kPrologueAbilitySetter) &&
                    Image::matches(slotOf(kSetAbilityLength), kPrologueAbilitySetter);

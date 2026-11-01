@@ -5,8 +5,9 @@ is deployed (F4). Your mod only describes the vehicle in the game's tables; no c
 
 - Deployed, the vehicle spawns its squad at once, if it has a kit left.
 - One squad per vehicle at a time.
-- The squad dies when the vehicle packs up, is destroyed, or leaves F4 mode for any other reason. In the open it
-  self-destructs (see "The squad"); inside a vehicle or a building it dies silently, with no blast in there.
+- The squad dies when the vehicle packs up, is destroyed, or leaves F4 mode for any other reason - also inside a
+  building or a vehicle (there a few seconds later: the self-detonation does not reach it, the engine's kill queue
+  does).
 - A squad lost in battle packs its vehicle up by itself.
 - After the squad dies (in battle or with its vehicle's pack-up), the vehicle waits a cooldown before the next one.
   F4 shows the wait: greyed out, filling up, and it cannot be pressed until the wait is over.
