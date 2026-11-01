@@ -206,7 +206,47 @@ inline void* entity(core::Vehicle* v) { return v; }
 struct Known {
     void* world;
     std::string name;
+    void* launcher = nullptr;   // the gun that loads the kit (shows the cooldown); found on first use
+    bool looked = false;        // looked for it already
 };
+
+// A gun (vtable Gun): +0x50 the ammunition row it has loaded, +0xe0 reloading (byte), +0xf0 the reload timer, the
+// reload time is +0xd0 x +0xfc (slot 25 - the reload progress the ammo panel shows - is +0xf0 / that).
+constexpr size_t kGunAmmo = 0x50, kGunReloading = 0xe0, kGunReloadTimer = 0xf0, kGunReloadTime = 0xd0,
+                 kGunReloadFactor = 0xfc;
+uintptr_t g_gunVt;
+float& gunFloat(void* gun, size_t off) { return *reinterpret_cast<float*>(static_cast<char*>(gun) + off); }
+
+// The vehicle's gun that has `ammo` (an ammunition row) loaded: its gunner ([cache+0x38]) keeps its guns in a vector
+// (slot 27 +0xd8 - how many, slot 29 +0xe8 - the i-th).
+void* gunLoading(void* vehicle, void* ammo) {
+    void* gunner = field(cacheOf(vehicle), 0x38);
+    if (!gunner || !ammo) return nullptr;
+    size_t n = vcall<size_t>(gunner, 0xd8);
+    for (size_t i = 0; i < n && i < 64; ++i) {
+        void* gun = vcall<void*>(gunner, 0xe8, i);
+        if (gun && *static_cast<uintptr_t*>(gun) == g_gunVt && field(gun, kGunAmmo) == ammo) return gun;
+    }
+    return nullptr;
+}
+
+// The vehicle's ammunition depot (its AiFacet +0x1c8) and its entry `name`; nullptr - none / not carried (a vehicle
+// stores only the ammunition one of its guns fires).
+void* depotOf(void* vehicle) {
+    void* ai = aiOf(vehicle);
+    return ai ? vcall<void*>(ai, 0x1c8) : nullptr;
+}
+DepotEntry* depotEntry(void* depot, const std::string& name) {
+    if (!depot) return nullptr;
+    auto e = vcall<EntryVector*>(depot, kDepotEntries);
+    for (DepotEntry* k = e->begin; k != e->end; ++k)
+        if (name == k->name.c_str()) return k;
+    return nullptr;
+}
+void* ammoRow(void* vehicle, const std::string& name) {
+    DepotEntry* k = depotEntry(depotOf(vehicle), name);
+    return k ? k->ammo : nullptr;
+}
 std::unordered_map<core::Vehicle*, Known> g_known;
 int g_events = 0;
 
@@ -219,17 +259,11 @@ public:
     }
 
     bool spendKit(core::Vehicle* v, const std::string& ammo) override {
-        void* ai = aiOf(entity(v));
-        void* depot = ai ? vcall<void*>(ai, 0x1c8) : nullptr;
-        if (!depot) return false;
-        auto e = vcall<EntryVector*>(depot, kDepotEntries);
-        for (DepotEntry* k = e->begin; k != e->end; ++k) {
-            if (ammo != k->name.c_str()) continue;
-            if (k->rounds < 1) return false;
-            vcall<void>(depot, kDepotConsume, k->ammo, 1u);
-            return true;
-        }
-        return false;  // the vehicle does not carry it (no gun of it loads it)
+        void* depot = depotOf(entity(v));
+        DepotEntry* k = depotEntry(depot, ammo);
+        if (!k || k->rounds < 1) return false;
+        vcall<void>(depot, kDepotConsume, k->ammo, 1u);
+        return true;
     }
 
     SquadId spawn(core::Vehicle* v, const std::string& squad) override {
@@ -265,6 +299,33 @@ public:
 
     // The vehicle is alive here: this runs from its own AiFacet update.
     void pack(core::Vehicle* v) override { g_pack(entity(v)); }
+
+    // The kit launcher "reloads" for the length of the cooldown: the ammo panel shows reload progress. Held short of
+    // the end (a finished reload would load a kit from the depot) and released when the cooldown is over. Runs from
+    // the vehicle's own AiFacet update, so the vehicle and its guns are alive.
+    void showCooldown(core::Vehicle* v, const core::SpawnConfig& c, float left) override {
+        auto it = g_known.find(v);
+        if (it == g_known.end() || c.ammo.empty()) return;
+        Known& k = it->second;
+        if (!k.looked) {
+            k.looked = true;
+            k.launcher = gunLoading(entity(v), ammoRow(entity(v), c.ammo));
+            if (g_logEvents)
+                g_log("'%s': kit launcher %s (reload time %.1f s)", k.name.c_str(), k.launcher ? "found" : "NOT found",
+                      k.launcher ? gunFloat(k.launcher, kGunReloadTime) * gunFloat(k.launcher, kGunReloadFactor) : 0.0f);
+        }
+        void* gun = k.launcher;
+        if (!gun) return;
+        float total = gunFloat(gun, kGunReloadTime) * gunFloat(gun, kGunReloadFactor);
+        if (left <= 0 || total <= 1.0f) {
+            *(static_cast<uint8_t*>(gun) + kGunReloading) = 0;
+            gunFloat(gun, kGunReloadTimer) = 0;
+            return;
+        }
+        *(static_cast<uint8_t*>(gun) + kGunReloading) = 1;
+        float done = (1 - left) * total, hold = total - 0.5f;
+        gunFloat(gun, kGunReloadTimer) = done < hold ? done : hold;
+    }
 
     void event(const char* what, core::Vehicle* v, SquadId s) override {
         if (!g_logEvents || g_events >= 200) return;
@@ -407,9 +468,10 @@ bool resolve(const Image& img, Addr& a) {
     a.stateVt = img.vtableOf("AiDoRechargeState@Leonardo");
     a.aiVt = img.vtableOf("AiFacet@Leonardo");
     a.utilsVt = img.vtableOf("LogicUtilsImpl@Leonardo");
-    g_log("vtables: AiDoRechargeState %08X AiFacet %08X LogicUtilsImpl %08X", a.stateVt ? img.rva(a.stateVt) : 0,
-          a.aiVt ? img.rva(a.aiVt) : 0, a.utilsVt ? img.rva(a.utilsVt) : 0);
-    if (!a.stateVt || !a.aiVt || !a.utilsVt) return false;
+    g_gunVt = img.vtableOf("Gun@Leonardo");
+    g_log("vtables: AiDoRechargeState %08X AiFacet %08X LogicUtilsImpl %08X Gun %08X", a.stateVt ? img.rva(a.stateVt) : 0,
+          a.aiVt ? img.rva(a.aiVt) : 0, a.utilsVt ? img.rva(a.utilsVt) : 0, g_gunVt ? img.rva(g_gunVt) : 0);
+    if (!a.stateVt || !a.aiVt || !a.utilsVt) return false;  // no Gun vtable - only the cooldown is not shown
 
     uintptr_t wrapper = *reinterpret_cast<uintptr_t*>(a.utilsVt + 8 * kSlotSpawnWrapper);
     if (Image::matches(wrapper, kSpawnWrapper)) {

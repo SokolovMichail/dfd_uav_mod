@@ -44,6 +44,13 @@ void Spawner::onTick(Vehicle* v, float dt) {
     if (it == vehicles_.end()) return;
     VehicleState& s = it->second;
     if (s.cooldown > 0) s.cooldown = s.cooldown > dt ? s.cooldown - dt : 0;
+    if (s.cooldown > 0 && s.config->cooldown > 0) {
+        port_.showCooldown(v, *s.config, s.cooldown / s.config->cooldown);
+        s.shown = true;
+    } else if (s.shown) {
+        port_.showCooldown(v, *s.config, 0);
+        s.shown = false;
+    }
     if (!s.deployed) return;
     if (s.squad && !port_.alive(v, s.squad)) {
         port_.event("squad lost: packing up", v, s.squad);

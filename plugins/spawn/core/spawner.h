@@ -39,6 +39,8 @@ public:
     virtual void kill(Vehicle* v, SquadId s) = 0;
     // Order the vehicle out of F4 mode, as the player's F4 does. The game ends F4 mode later (onPacked follows).
     virtual void pack(Vehicle* v) = 0;
+    // Show the cooldown on the vehicle: `left` - the part of it still to wait, (0, 1]; 0 - over (said once).
+    virtual void showCooldown(Vehicle* v, const SpawnConfig& c, float left) = 0;
     // Report a notable event (the binding decides how to log it).
     virtual void event(const char* what, Vehicle* v, SquadId s) = 0;
 };
@@ -50,6 +52,7 @@ struct VehicleState {
     SquadId squad = 0;
     float cooldown = 0;  // seconds of game time left before the next spawn
     bool noKit = false;  // the last try found no kit (reported once until a spawn succeeds)
+    bool shown = false;  // the cooldown is being shown on the vehicle
 };
 
 class Spawner {
