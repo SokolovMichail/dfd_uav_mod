@@ -6,8 +6,8 @@
 //   - The squad dies when the vehicle leaves F4 mode for whatever reason (packing up, destroyed, another order).
 //   - A squad lost in battle packs its vehicle up: the vehicle leaves F4 mode by itself.
 //   - After the squad dies - killed in battle or with its vehicle's pack-up - the vehicle waits spawn_cooldown
-//     seconds of game time before the next one; its F4 button shows the wait (f4Cooldown). Deployed again before the
-//     wait is over, it spawns when it is.
+//     seconds of game time before the next one (cooldownLeft - the binding shows it). Deployed again before the wait
+//     is over, it spawns by itself when it is.
 //
 // The core never touches game memory: it sees the game through SpawnPort, and vehicles are opaque handles.
 #pragma once
@@ -48,7 +48,6 @@ public:
 struct VehicleState {
     const SpawnConfig* config = nullptr;  // taken from the port when the vehicle first deploys
     bool deployed = false;  // in F4 mode and spawning (false already while a pack-up the rules ordered is under way)
-    bool inF4 = false;      // in F4 mode as far as the game is concerned: from onDeployed to onPacked
     SquadId squad = 0;
     float cooldown = 0;  // seconds of game time left before the next spawn
     bool noKit = false;  // the last try found no kit (reported once until a spawn succeeds)
@@ -69,9 +68,8 @@ public:
     // notices its squad's death and spawns when it may. Vehicles the rules do not know are skipped at once.
     void onTick(Vehicle* v, float dt);
 
-    // The wait to show on the vehicle's F4 button, in seconds: its cooldown while it is out of F4 mode; 0 - nothing to
-    // show (no cooldown, in F4 mode, a pack-up still under way, or a vehicle the rules do not know).
-    float f4Cooldown(Vehicle* v) const;
+    // Seconds of the vehicle's cooldown still to wait, deployed or not; 0 - none (or a vehicle the rules do not know).
+    float cooldownLeft(Vehicle* v) const;
 
     // The state of a vehicle, nullptr - never deployed (for logs and tests).
     const VehicleState* state(Vehicle* v) const;

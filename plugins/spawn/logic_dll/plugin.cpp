@@ -206,19 +206,36 @@ inline void* entity(core::Vehicle* v) { return v; }
 struct Known {
     void* world;
     std::string name;
-    bool f4Timer = false;  // F4's cooldown timer is set by us (cleared once when the wait is over)
+    bool showing = false;  // the cooldown button is on (taken off once when the wait is over)
 };
 
-// The vehicle's abilities - the buttons of its command panel - each have a cooldown of their own, as the smoke
-// grenades do: a timer the game counts down every frame and its full length. AiFacet slot 33 +0x108 sets the timer,
-// slot 34 +0x110 the length (ability id, seconds; 30 / 31 read them, 32 - enabled). F4 is ability 7 (Pack).
-constexpr int kAbilityPack = 7;
-constexpr size_t kSetAbilityTimer = 0x108, kSetAbilityLength = 0x110;
+// The vehicle's abilities - the buttons of its command panel. Each has an "enabled" byte, which is also whether its
+// button is there, and a cooldown: a timer the game counts down every frame and its full length. They live in a
+// hash map in the AiFacet (g_abilitiesAt, +0xf0 in GOG): id -> {id, timer, length, enabled}, refreshed every frame
+// by AiFacet::update (0x129ff0); g_abilityLookup(map, &result, &id) -> result[0] the node, +0x1c "enabled". AiFacet
+// slot 33 +0x108 sets an ability's timer, slot 34 +0x110 its length (30 / 31 read them).
+//
+// Only some abilities' buttons draw the timer (game.dll's TimerAbilityWindow: greyed out, a progress bar filling
+// up): SpawnSmoke, SpawnPoisonedSmoke, Rush, Hunting. F4 (Pack, 7) is a two-state button that does not. So the
+// cooldown is shown on a borrowed one, Rush (5) - vehicles do not have it: while the cooldown runs it is turned on
+// with the timer set, so its button is there but cannot be pressed; when the wait is over it goes away again (the
+// next refresh turns it off), and a deployed vehicle launches its squad by itself.
+using AbilityLookupFn = void** (*)(void* map, void* result, const int* id);
+AbilityLookupFn g_abilityLookup;
+size_t g_abilitiesAt;
+constexpr int kCooldownAbility = 5;  // Rush
+constexpr size_t kAbilityEnabled = 0x1c, kSetAbilityTimer = 0x108, kSetAbilityLength = 0x110;
 
-// F4's cooldown on the vehicle's AI: `left` seconds of `length`; left 0 - none.
-void setF4Cooldown(void* ai, float left, float length) {
-    if (left > 0) vcall<void>(ai, kSetAbilityLength, kAbilityPack, length);
-    vcall<void>(ai, kSetAbilityTimer, kAbilityPack, left);
+// Show the cooldown on the vehicle's AI: the borrowed ability on, `left` seconds of `length`; left 0 - off.
+void showCooldown(void* ai, float left, float length) {
+    if (left > 0) {
+        void* result[2] = {};
+        int id = kCooldownAbility;
+        void** r = g_abilityLookup(static_cast<char*>(ai) + g_abilitiesAt, result, &id);
+        if (r && *r) *(static_cast<uint8_t*>(*r) + kAbilityEnabled) = 1;
+        vcall<void>(ai, kSetAbilityLength, kCooldownAbility, length);
+    }
+    vcall<void>(ai, kSetAbilityTimer, kCooldownAbility, left);
 }
 
 // The vehicle's ammunition depot (its AiFacet +0x1c8) and its entry `name`; nullptr - none / not carried (a vehicle
@@ -382,9 +399,9 @@ void* hookStateDtor(void* state, unsigned flags) {
     return g_origStateDtor(state, flags);
 }
 
-// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock. While a vehicle's cooldown runs, its
-// F4 button shows it as an ability cooldown (set every frame from the rules' time, so the game's own countdown of it
-// never drifts away), and is cleared once when it is over.
+// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock. The original has just refreshed the
+// vehicle's abilities; while its cooldown runs, the cooldown button is put back on with the rules' time left (so the
+// game's own countdown of it never drifts away), and taken off once when the wait is over.
 void hookAiUpdate(void* ai, float dt) {
     g_origAiUpdate(ai, dt);
     void* e = ownerOf(ai);
@@ -395,13 +412,13 @@ void hookAiUpdate(void* ai, float dt) {
         auto known = g_known.find(v);
         const core::VehicleState* s = g_spawner.state(v);
         if (known == g_known.end() || !s) return;
-        float left = g_spawner.f4Cooldown(v);
+        float left = g_spawner.cooldownLeft(v);
         if (left > 0) {
-            setF4Cooldown(ai, left, s->config->cooldown);
-            known->second.f4Timer = true;
-        } else if (known->second.f4Timer) {
-            setF4Cooldown(ai, 0, 0);
-            known->second.f4Timer = false;
+            showCooldown(ai, left, s->config->cooldown);
+            known->second.showing = true;
+        } else if (known->second.showing) {
+            showCooldown(ai, 0, 0);
+            known->second.showing = false;
         }
     });
 }
@@ -435,6 +452,14 @@ constexpr const char* kProloguePack = "40 56 57 48 83 EC 38 48 8B 01 48 8B F9 FF
 // AiFacet slots 33 / 34 (set an ability's cooldown timer / length): both look the ability up in the table at
 // [AiFacet+0x108] - "mov r10, [rcx+0x108]; mov r9, FNV prime".
 constexpr const char* kPrologueAbilitySetter = "4C 8B 91 08 01 00 00 49 B9 B3 01 00 00 00 01 00 00";
+// The abilities refresh (0x129ff0) setting F4's "enabled": "id = 7; call lookup(r14 = the map, &result, &id);
+// [result][+0x1c] = bl". The map is the AiFacet field r14 was loaded with: "lea r14, [rdi + disp32]" before it.
+constexpr const char* kSigPackAbility =
+    "4C 8D 45 67 C7 45 67 07 00 00 00 48 8D 55 F7 49 8B CE E8 ?? ?? ?? ?? 4C 8D 45 67 45 32 FF 48 8D 55 F7 48 8B 08 "
+    "88 59 1C";
+constexpr size_t kAbilityLookupCall = 0x12, kAbilityMapLeaWithin = 0x600;
+constexpr const char* kSigAbilityMapLea = "4C 8D B7 ?? ?? ?? ??";
+constexpr const char* kPrologueAbilityLookup = "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 54 41 55";
 
 struct Addr {
     uintptr_t stateVt, aiVt, utilsVt;
@@ -468,14 +493,26 @@ bool resolve(const Image& img, Addr& a) {
         if (!Image::matches(reinterpret_cast<uintptr_t>(g_pack), kProloguePack)) g_pack = nullptr;
     }
     auto slotOf = [&](size_t off) { return *reinterpret_cast<uintptr_t*>(a.aiVt + off); };
-    bool abilities = Image::matches(slotOf(kSetAbilityTimer), kPrologueAbilitySetter) &&
-                     Image::matches(slotOf(kSetAbilityLength), kPrologueAbilitySetter);
+    bool setters = Image::matches(slotOf(kSetAbilityTimer), kPrologueAbilitySetter) &&
+                   Image::matches(slotOf(kSetAbilityLength), kPrologueAbilitySetter);
+    auto ability = img.find(kSigPackAbility);
+    if (ability.size() == 1) {
+        g_abilityLookup = reinterpret_cast<AbilityLookupFn>(Image::ripTarget(ability[0] + kAbilityLookupCall, 1, 5));
+        if (!Image::matches(reinterpret_cast<uintptr_t>(g_abilityLookup), kPrologueAbilityLookup))
+            g_abilityLookup = nullptr;
+        for (uintptr_t p = ability[0]; p > ability[0] - kAbilityMapLeaWithin; --p)  // the nearest lea r14 before it
+            if (Image::matches(p, kSigAbilityMapLea)) {
+                g_abilitiesAt = *reinterpret_cast<const uint32_t*>(p + 3);
+                break;
+            }
+    }
     g_log("functions: spawn %08X (context %08X), self-detonate %08X (%zu calls), pack %08X (%zu calls), "
-          "ability cooldown setters %08X / %08X (%s)",
+          "ability cooldown setters %08X / %08X (%s), ability lookup %08X (%zu calls, abilities at AiFacet+%zX)",
           rvaOf(img, (void*)g_spawn), rvaOf(img, g_spawnCtx), rvaOf(img, (void*)g_detonate), det.size(),
           rvaOf(img, (void*)g_pack), pack.size(), img.rva(slotOf(kSetAbilityTimer)), img.rva(slotOf(kSetAbilityLength)),
-          abilities ? "as expected" : "NOT as expected");
-    return g_spawn && g_detonate && g_pack && abilities;
+          setters ? "as expected" : "NOT as expected", rvaOf(img, (void*)g_abilityLookup), ability.size(),
+          g_abilitiesAt);
+    return g_spawn && g_detonate && g_pack && setters && g_abilityLookup && g_abilitiesAt;
 }
 
 }  // namespace
