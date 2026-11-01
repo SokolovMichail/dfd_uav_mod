@@ -1,0 +1,5 @@
+# Концы строк в репозитории и рабочей копии - LF (скрипты и генераторы пишут LF)
+* text=auto eol=lf
+*.dds binary
+*.png binary
+*.dll binary

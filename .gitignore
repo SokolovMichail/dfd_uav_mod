@@ -1,0 +1,13 @@
+# сборка
+cmake-build-*/
+build/
+dist/
+# локальные секреты и настройки
+.env
+# распакованное вручную (mod/tools/pak_extract.py)
+mod/extracted/
+__pycache__/
+*.pyc
+re/cache/
+# CLion: общие конфигурации запуска - в .run/
+.idea/
