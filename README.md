@@ -44,6 +44,8 @@ cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug
 cmake --build cmake-build-debug --target deploy
 ```
 
-`deploy` (the game must be closed) installs `bin\winhttp.dll`, `bin\plugins\SpawnFramework.dll` and
-`mods\Patchwork_UAV`, and removes the probe. Then enable **Patchwork UAV** in MODS; disable other mods that ship
-`cars.xml` (HEMTT Spares). The vans are in the Resistance and Founders skirmish armies.
+`deploy` (the game must be closed) installs `bin\plugins\SpawnFramework.dll` and `mods\Patchwork_UAV`, and removes
+the probe. It leaves `bin\winhttp.dll` as it is: that is already a loader of `bin\plugins\*.dll` (ours from
+DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` installs ours too. Then enable
+**Patchwork UAV** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares). The vans are in the Resistance and
+Founders skirmish armies.
