@@ -120,28 +120,28 @@ TEST_CASE("the cooldown runs while packed up; redeploying after it spawns again"
     CHECK(f.kits() == 3);
 }
 
-TEST_CASE("F4 is off while the cooldown runs, and only then") {
+TEST_CASE("F4 shows the cooldown while it runs, and only then") {
     Fixture f;
-    CHECK_FALSE(f.spawner.f4Blocked(f.van));  // never deployed
+    CHECK(f.spawner.f4Cooldown(f.van) == 0);  // never deployed
     f.spawner.onDeployed(f.van);
-    CHECK_FALSE(f.spawner.f4Blocked(f.van));  // deployed, squad out: the player may pack up
+    CHECK(f.spawner.f4Cooldown(f.van) == 0);  // deployed, squad out: the player may pack up
     f.spawner.onPacked(f.van);
-    CHECK(f.spawner.f4Blocked(f.van));
+    CHECK(f.spawner.f4Cooldown(f.van) == doctest::Approx(60));
     f.spawner.onTick(f.van, 59.0f);
-    CHECK(f.spawner.f4Blocked(f.van));
+    CHECK(f.spawner.f4Cooldown(f.van) == doctest::Approx(1));
     f.spawner.onTick(f.van, 1.0f);
-    CHECK_FALSE(f.spawner.f4Blocked(f.van));
-    CHECK_FALSE(f.spawner.f4Blocked(handle(9)));  // not ours
+    CHECK(f.spawner.f4Cooldown(f.van) == 0);
+    CHECK(f.spawner.f4Cooldown(handle(9)) == 0);  // not ours
 }
 
-TEST_CASE("a squad lost in battle blocks F4 once its vehicle has packed up") {
+TEST_CASE("after a squad lost in battle F4 shows the cooldown once the vehicle has packed up") {
     Fixture f;
     f.spawner.onDeployed(f.van);
     f.port.living.clear();
-    f.spawner.onTick(f.van, 0.1f);  // lost: pack-up ordered
-    CHECK_FALSE(f.spawner.f4Blocked(f.van));  // the pack-up is under way: F4 as the game has it
+    f.spawner.onTick(f.van, 0.1f);                 // lost: pack-up ordered
+    CHECK(f.spawner.f4Cooldown(f.van) == 0);       // the pack-up is under way: F4 as the game has it
     f.spawner.onPacked(f.van);
-    CHECK(f.spawner.f4Blocked(f.van));
+    CHECK(f.spawner.f4Cooldown(f.van) == doctest::Approx(60));
 }
 
 TEST_CASE("a squad lost in battle packs its vehicle up and starts the cooldown") {

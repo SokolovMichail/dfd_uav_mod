@@ -206,24 +206,19 @@ inline void* entity(core::Vehicle* v) { return v; }
 struct Known {
     void* world;
     std::string name;
+    bool f4Timer = false;  // F4's cooldown timer is set by us (cleared once when the wait is over)
 };
 
-// The vehicle's abilities - the buttons of its command panel: a hash map in its AiFacet (g_abilitiesAt, +0xf0 in
-// GOG), ability id -> {id, float, float, enabled}; AiFacet::update refreshes it every frame (0x129ff0) and the
-// lookup is g_abilityLookup(map, &result, &id) -> result[0] the node, +0x1c its "enabled" byte. F4 is ability 7
-// (Pack: deploy / pack up).
-using AbilityLookupFn = void** (*)(void* map, void* result, const int* id);
-AbilityLookupFn g_abilityLookup;
-size_t g_abilitiesAt;
+// The vehicle's abilities - the buttons of its command panel - each have a cooldown of their own, as the smoke
+// grenades do: a timer the game counts down every frame and its full length. AiFacet slot 33 +0x108 sets the timer,
+// slot 34 +0x110 the length (ability id, seconds; 30 / 31 read them, 32 - enabled). F4 is ability 7 (Pack).
 constexpr int kAbilityPack = 7;
-constexpr size_t kAbilityEnabled = 0x1c;
+constexpr size_t kSetAbilityTimer = 0x108, kSetAbilityLength = 0x110;
 
-// Turn the vehicle's F4 button off until the next refresh (the next frame).
-void disableF4(void* ai) {
-    void* result[2] = {};
-    int id = kAbilityPack;
-    void** r = g_abilityLookup(static_cast<char*>(ai) + g_abilitiesAt, result, &id);
-    if (r && *r) *(static_cast<uint8_t*>(*r) + kAbilityEnabled) = 0;
+// F4's cooldown on the vehicle's AI: `left` seconds of `length`; left 0 - none.
+void setF4Cooldown(void* ai, float left, float length) {
+    if (left > 0) vcall<void>(ai, kSetAbilityLength, kAbilityPack, length);
+    vcall<void>(ai, kSetAbilityTimer, kAbilityPack, left);
 }
 
 // The vehicle's ammunition depot (its AiFacet +0x1c8) and its entry `name`; nullptr - none / not carried (a vehicle
@@ -387,15 +382,27 @@ void* hookStateDtor(void* state, unsigned flags) {
     return g_origStateDtor(state, flags);
 }
 
-// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock. The original has just refreshed the
-// vehicle's abilities; while its cooldown runs, F4 is turned off again.
+// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock. While a vehicle's cooldown runs, its
+// F4 button shows it as an ability cooldown (set every frame from the rules' time, so the game's own countdown of it
+// never drifts away), and is cleared once when it is over.
 void hookAiUpdate(void* ai, float dt) {
     g_origAiUpdate(ai, dt);
     void* e = ownerOf(ai);
     if (!e || !g_tracked.count(e)) return;
     guarded("tick", [&] {
-        g_spawner.onTick(handle(e), dt);
-        if (g_spawner.f4Blocked(handle(e))) disableF4(ai);
+        core::Vehicle* v = handle(e);
+        g_spawner.onTick(v, dt);
+        auto known = g_known.find(v);
+        const core::VehicleState* s = g_spawner.state(v);
+        if (known == g_known.end() || !s) return;
+        float left = g_spawner.f4Cooldown(v);
+        if (left > 0) {
+            setF4Cooldown(ai, left, s->config->cooldown);
+            known->second.f4Timer = true;
+        } else if (known->second.f4Timer) {
+            setF4Cooldown(ai, 0, 0);
+            known->second.f4Timer = false;
+        }
     });
 }
 
@@ -425,14 +432,9 @@ constexpr const char* kSigPackCall =
     "E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 49 8B 0E 48 85 C9 74 09 48 8B 49 10 48 85 C9 75 03 48 8B CF E8 ?? ?? ?? ??";
 constexpr size_t kPackCall = 0x44;
 constexpr const char* kProloguePack = "40 56 57 48 83 EC 38 48 8B 01 48 8B F9 FF 90 B0 00 00 00 48 8B 70 28";
-// The abilities refresh (0x129ff0) setting F4's "enabled": "id = 7; call lookup(r14 = the map, &result, &id);
-// [result][+0x1c] = bl". The map is the AiFacet field r14 was loaded with: "lea r14, [rdi + disp32]" before it.
-constexpr const char* kSigPackAbility =
-    "4C 8D 45 67 C7 45 67 07 00 00 00 48 8D 55 F7 49 8B CE E8 ?? ?? ?? ?? 4C 8D 45 67 45 32 FF 48 8D 55 F7 48 8B 08 "
-    "88 59 1C";
-constexpr size_t kAbilityLookupCall = 0x12, kAbilityMapLeaWithin = 0x600;
-constexpr const char* kSigAbilityMapLea = "4C 8D B7 ?? ?? ?? ??";
-constexpr const char* kPrologueAbilityLookup = "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 41 54 41 55";
+// AiFacet slots 33 / 34 (set an ability's cooldown timer / length): both look the ability up in the table at
+// [AiFacet+0x108] - "mov r10, [rcx+0x108]; mov r9, FNV prime".
+constexpr const char* kPrologueAbilitySetter = "4C 8B 91 08 01 00 00 49 B9 B3 01 00 00 00 01 00 00";
 
 struct Addr {
     uintptr_t stateVt, aiVt, utilsVt;
@@ -465,22 +467,15 @@ bool resolve(const Image& img, Addr& a) {
         g_pack = reinterpret_cast<PackFn>(Image::ripTarget(pack[0] + kPackCall, 1, 5));
         if (!Image::matches(reinterpret_cast<uintptr_t>(g_pack), kProloguePack)) g_pack = nullptr;
     }
-    auto ability = img.find(kSigPackAbility);
-    if (ability.size() == 1) {
-        g_abilityLookup = reinterpret_cast<AbilityLookupFn>(Image::ripTarget(ability[0] + kAbilityLookupCall, 1, 5));
-        if (!Image::matches(reinterpret_cast<uintptr_t>(g_abilityLookup), kPrologueAbilityLookup))
-            g_abilityLookup = nullptr;
-        for (uintptr_t p = ability[0]; p > ability[0] - kAbilityMapLeaWithin; --p)  // the nearest lea r14 before it
-            if (Image::matches(p, kSigAbilityMapLea)) {
-                g_abilitiesAt = *reinterpret_cast<const uint32_t*>(p + 3);
-                break;
-            }
-    }
+    auto slotOf = [&](size_t off) { return *reinterpret_cast<uintptr_t*>(a.aiVt + off); };
+    bool abilities = Image::matches(slotOf(kSetAbilityTimer), kPrologueAbilitySetter) &&
+                     Image::matches(slotOf(kSetAbilityLength), kPrologueAbilitySetter);
     g_log("functions: spawn %08X (context %08X), self-detonate %08X (%zu calls), pack %08X (%zu calls), "
-          "ability lookup %08X (%zu calls, abilities at AiFacet+%zX)",
+          "ability cooldown setters %08X / %08X (%s)",
           rvaOf(img, (void*)g_spawn), rvaOf(img, g_spawnCtx), rvaOf(img, (void*)g_detonate), det.size(),
-          rvaOf(img, (void*)g_pack), pack.size(), rvaOf(img, (void*)g_abilityLookup), ability.size(), g_abilitiesAt);
-    return g_spawn && g_detonate && g_pack && g_abilityLookup && g_abilitiesAt;
+          rvaOf(img, (void*)g_pack), pack.size(), img.rva(slotOf(kSetAbilityTimer)), img.rva(slotOf(kSetAbilityLength)),
+          abilities ? "as expected" : "NOT as expected");
+    return g_spawn && g_detonate && g_pack && abilities;
 }
 
 }  // namespace

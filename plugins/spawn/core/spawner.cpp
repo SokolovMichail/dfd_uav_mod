@@ -56,9 +56,9 @@ void Spawner::onTick(Vehicle* v, float dt) {
     if (!s.squad && s.cooldown <= 0) trySpawn(v, s, *s.config);
 }
 
-bool Spawner::f4Blocked(Vehicle* v) const {
+float Spawner::f4Cooldown(Vehicle* v) const {
     auto it = vehicles_.find(v);
-    return it != vehicles_.end() && !it->second.inF4 && it->second.cooldown > 0;
+    return it != vehicles_.end() && !it->second.inF4 ? it->second.cooldown : 0;
 }
 
 const VehicleState* Spawner::state(Vehicle* v) const {

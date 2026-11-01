@@ -6,7 +6,8 @@
 //   - The squad dies when the vehicle leaves F4 mode for whatever reason (packing up, destroyed, another order).
 //   - A squad lost in battle packs its vehicle up: the vehicle leaves F4 mode by itself.
 //   - After the squad dies - killed in battle or with its vehicle's pack-up - the vehicle waits spawn_cooldown
-//     seconds of game time before the next one, with its F4 button off (f4Blocked).
+//     seconds of game time before the next one; its F4 button shows the wait (f4Cooldown). Deployed again before the
+//     wait is over, it spawns when it is.
 //
 // The core never touches game memory: it sees the game through SpawnPort, and vehicles are opaque handles.
 #pragma once
@@ -68,9 +69,9 @@ public:
     // notices its squad's death and spawns when it may. Vehicles the rules do not know are skipped at once.
     void onTick(Vehicle* v, float dt);
 
-    // Is the vehicle's F4 button off: it is out of F4 mode and its cooldown runs - the player sees it is not ready.
-    // While a pack-up is still under way the button stays as the game has it. Vehicles the rules do not know: false.
-    bool f4Blocked(Vehicle* v) const;
+    // The wait to show on the vehicle's F4 button, in seconds: its cooldown while it is out of F4 mode; 0 - nothing to
+    // show (no cooldown, in F4 mode, a pack-up still under way, or a vehicle the rules do not know).
+    float f4Cooldown(Vehicle* v) const;
 
     // The state of a vehicle, nullptr - never deployed (for logs and tests).
     const VehicleState* state(Vehicle* v) const;
