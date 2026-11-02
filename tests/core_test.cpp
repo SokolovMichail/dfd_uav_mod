@@ -70,8 +70,16 @@ public:
 
 Vehicle* handle(int n) { return reinterpret_cast<Vehicle*>(static_cast<uintptr_t>(n) * 16); }
 
-const SpawnConfig kUav{"Res_patchwork_uav", "uav_kit", 60.0f};
-const SpawnConfig kFree{"Lgn_swarm", "", 30.0f};
+SpawnConfig config(const char* squad, const char* ammo, float cooldown) {
+    SpawnConfig c;
+    c.squad = squad;
+    c.ammo = ammo;
+    c.cooldown = cooldown;
+    return c;
+}
+
+const SpawnConfig kUav = config("Res_patchwork_uav", "uav_kit", 60.0f);
+const SpawnConfig kFree = config("Lgn_swarm", "", 30.0f);
 
 // A port with one UAV van (5 kits) at handle(1).
 struct Fixture {
@@ -333,7 +341,7 @@ TEST_CASE("a map change forgets every vehicle and kills nothing") {
 namespace {
 
 SpawnConfig troops(int count, bool tethered = false) {
-    SpawnConfig c{"Res_militia", "uav_kit", 40.0f};
+    SpawnConfig c = config("Res_militia", "uav_kit", 40.0f);
     c.tethered = tethered;
     c.count = count;
     return c;
@@ -373,23 +381,47 @@ TEST_CASE("an untethered vehicle's squads are on their own: pack-up, loss and de
     f.port.vehicles[f.van] = {&c, 5};
     f.spawner.onDeployed(f.van);
     f.port.living.clear();  // both lost in battle
-    f.spawner.onTick(f.van, 1.0f);
-    CHECK(f.port.packed.empty());
+    for (int i = 0; i < 5; ++i) f.spawner.onTick(f.van, 1.0f);
+    CHECK(f.port.packed.size() == 1);  // the launch's own pack-up, nothing for the loss
     f.spawner.onPacked(f.van);
     f.spawner.onRemoved(f.van);
     CHECK(f.port.killed.empty());
 }
 
-TEST_CASE("an untethered vehicle launches once per deploy, not again when the cooldown ends") {
+TEST_CASE("an untethered vehicle packs up by itself after its launch - on the next tick, not in the deploy") {
     Fixture f;
     SpawnConfig c = troops(1);
     f.port.vehicles[f.van] = {&c, 5};
     f.spawner.onDeployed(f.van);
-    for (int i = 0; i < 100; ++i) f.spawner.onTick(f.van, 1.0f);  // deployed all the while
-    CHECK(f.port.spawned.size() == 1);
+    CHECK(f.port.packed.empty());  // the deploy runs inside F4 mode's own first tick
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.packed == std::vector<Vehicle*>{f.van});
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.packed.size() == 1);  // ordered once
     f.spawner.onPacked(f.van);
-    f.spawner.onDeployed(f.van);  // packed up and deployed again, the cooldown over
+    f.spawner.onTick(f.van, 40.0f);
+    f.spawner.onDeployed(f.van);  // deployed again after the cooldown: the next launch
     CHECK(f.port.spawned.size() == 2);
+}
+
+TEST_CASE("an untethered vehicle packs up even when there was nothing to launch") {
+    Fixture f;
+    SpawnConfig c = troops(1);
+    f.port.vehicles[f.van] = {&c, 0};
+    f.spawner.onDeployed(f.van);
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.spawned.empty());
+    CHECK(f.port.packed.size() == 1);
+}
+
+TEST_CASE("a player's pack-up before the next tick leaves nothing to order") {
+    Fixture f;
+    SpawnConfig c = troops(1);
+    f.port.vehicles[f.van] = {&c, 5};
+    f.spawner.onDeployed(f.van);
+    f.spawner.onPacked(f.van);
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.packed.empty());
 }
 
 TEST_CASE("a tethered vehicle keeps one squad, whatever its spawn_count") {

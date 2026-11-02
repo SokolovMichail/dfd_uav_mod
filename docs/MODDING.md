@@ -15,11 +15,10 @@ is deployed (F4). Your mod only describes the vehicle in the game's tables; no c
 
 That is a **tethered** vehicle, the default. An **untethered** one (`spawn_tethered` false) only launches:
 
-- Deployed with its cooldown over, it launches `spawn_count` squads, a kit each (as many as it has kits for), and the
-  cooldown starts at once.
+- Deployed with its cooldown over, it launches `spawn_count` squads, a kit each (as many as it has kits for), the
+  cooldown starts at once, and the vehicle packs up again by itself: F4 is its launch button.
 - The squads are on their own from then on: packing up, the vehicle's destruction or the squads' deaths change
   nothing.
-- One launch per deploy: the next needs a pack-up and a deploy after the cooldown.
 
 On the framework's vehicles F4 shows the vehicle's own pictures and tooltips (see "F4's look"); other vehicles' F4
 stays as the game draws it.

@@ -22,7 +22,8 @@ void Spawner::onDeployed(Vehicle* v) {
     s.deployed = true;
     port_.event("deployed", v, s.squad);
     if (!s.config->tethered) {
-        if (s.cooldown <= 0) launch(v, s, *s.config);  // the deploy's one launch; none later in it
+        if (s.cooldown <= 0) launch(v, s, *s.config);
+        s.packing = true;  // F4 was the launch: the vehicle packs up again, on its next tick
         return;
     }
     if (!s.squad && s.cooldown <= 0) trySpawn(v, s, *s.config);
@@ -54,6 +55,15 @@ void Spawner::onTick(Vehicle* v, float dt) {
     if (it == vehicles_.end()) return;
     VehicleState& s = it->second;
     if (s.cooldown > 0) s.cooldown = s.cooldown > dt ? s.cooldown - dt : 0;
+    if (s.packing) {  // not from the deploy itself: that runs inside F4 mode's own first tick
+        s.packing = false;
+        if (s.deployed) {
+            s.deployed = false;
+            port_.event("launched: packing up", v, 0);
+            port_.pack(v);
+        }
+        return;
+    }
     if (!s.deployed || !s.config->tethered) return;
     if (s.squad && !port_.alive(v, s.squad)) {
         port_.event("squad lost: packing up", v, s.squad);
