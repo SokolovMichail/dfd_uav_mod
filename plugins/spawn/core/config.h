@@ -6,6 +6,15 @@
 //                   the vehicle spawns without spending anything
 //   spawn_cooldown  seconds of game time after its squad dies before the vehicle may spawn the next one (60)
 //
+// How the vehicle's F4 button looks - each mod brings its own; empty - the Spawn Framework mod's defaults:
+//   spawn_icon            F4's deploy button, a UI picture as layouts name them (main\buttons2\x.dds); the
+//                         cooldown fills over it
+//   spawn_icon_cooldown   the picture the cooldown fills with (a dim copy of spawn_icon)
+//   spawn_icon_recall     F4's pack-up button
+//   spawn_tooltip         the deploy button's tooltip: a locale/strres.xml key, with <key>_desc and <key>_add rows;
+//                         at most 15 characters (the plugin writes it into the game's string in place)
+//   spawn_tooltip_recall  the pack-up button's, the same way
+//
 // The game ignores columns it does not know, so these live in the mod's own copy of the table (or in a
 // <table>.<mod>.patch.xml for DefianceLoader's table merge). Tables are Excel 2003 XML (SpreadsheetML).
 #pragma once
@@ -19,6 +28,8 @@ struct SpawnConfig {
     std::string squad;
     std::string ammo;
     float cooldown = 60.0f;
+    std::string icon, iconCooldown, iconRecall;  // empty - the default
+    std::string tooltip, tooltipRecall;          // empty - the default
 };
 
 // Vehicle sysname -> what it spawns.

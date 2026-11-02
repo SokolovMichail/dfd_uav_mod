@@ -71,9 +71,9 @@ const core::SpawnTable& spawnTable();
 void setGameDir(const std::wstring& gameDir);
 // The game folder: two levels above the folder the plugin DLL is in (bin\plugins\, DefianceLoader\plugins\).
 std::wstring gameDirOf(HMODULE self);
-// Is the entity a vehicle of the framework: its sysname is in spawnTable() (for the game.dll part, which decides by
-// it whether F4 shows the drones).
-bool spawnsSquads(void* entity);
+// The framework's row of a vehicle: its sysname's in spawnTable(); nullptr - not a vehicle of the framework (for the
+// game.dll part, which gives F4 the vehicle's own pictures and tooltips by it).
+const core::SpawnConfig* spawnConfigOf(void* entity);
 
 // ---------------------------------------------------------------- finding and patching
 

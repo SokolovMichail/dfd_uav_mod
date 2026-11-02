@@ -365,6 +365,29 @@ TEST_CASE("the framework's columns are read from a vehicle table") {
     CHECK(t["Int_recon_van"].cooldown == doctest::Approx(kDefaultCooldown));
     CHECK(t.count("Res_van") == 0);       // no spawn_squad
     CHECK(t.count("#Res_old_van") == 0);  // a comment row
+    CHECK(t["Res_patchwork_van"].icon.empty());  // no look columns: the defaults
+    CHECK(t["Res_patchwork_van"].tooltip.empty());
+}
+
+TEST_CASE("each vehicle's own F4 pictures and tooltips are read; empty cells leave the defaults") {
+    const char* table = R"(<Workbook><Worksheet><Table>
+   <Row><Cell><Data>sysname</Data></Cell><Cell><Data>spawn_squad</Data></Cell><Cell><Data>spawn_icon</Data></Cell><Cell><Data>spawn_icon_cooldown</Data></Cell><Cell><Data>spawn_icon_recall</Data></Cell><Cell><Data>spawn_tooltip</Data></Cell><Cell><Data>spawn_tooltip_recall</Data></Cell></Row>
+   <Row><Cell><Data>Res_patchwork_van</Data></Cell><Cell><Data>Res_patchwork_uav</Data></Cell><Cell><Data>main\buttons2\pwuav_ready.dds</Data></Cell><Cell><Data>main\buttons2\pwuav_cooldown.dds</Data></Cell><Cell><Data>main\buttons2\pwuav_recall.dds</Data></Cell><Cell><Data>pwuav_deploy</Data></Cell><Cell><Data>pwuav_recall</Data></Cell></Row>
+   <Row><Cell><Data>Mortar_truck</Data></Cell><Cell><Data>Res_mortar_team</Data></Cell><Cell ss:Index="6"><Data>mortar_deploy</Data></Cell></Row>
+  </Table></Worksheet></Workbook>)";
+    SpawnTable t;
+    CHECK(readSpawnColumns(table, t) == 2);
+    const SpawnConfig& uav = t["Res_patchwork_van"];
+    CHECK(uav.icon == "main\\buttons2\\pwuav_ready.dds");
+    CHECK(uav.iconCooldown == "main\\buttons2\\pwuav_cooldown.dds");
+    CHECK(uav.iconRecall == "main\\buttons2\\pwuav_recall.dds");
+    CHECK(uav.tooltip == "pwuav_deploy");
+    CHECK(uav.tooltipRecall == "pwuav_recall");
+    const SpawnConfig& mortar = t["Mortar_truck"];
+    CHECK(mortar.icon.empty());
+    CHECK(mortar.iconRecall.empty());
+    CHECK(mortar.tooltip == "mortar_deploy");
+    CHECK(mortar.tooltipRecall.empty());
 }
 
 TEST_CASE("a table without the framework's columns adds nothing") {

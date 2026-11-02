@@ -103,6 +103,7 @@ int readSpawnColumns(const std::string& x, SpawnTable& into) {
     if (table == std::string::npos || tableEnd == std::string::npos) return 0;
     std::vector<std::string> header;
     int sysname = -1, squad = -1, ammo = -1, cooldown = -1, added = 0;
+    int icon = -1, iconCooldown = -1, iconRecall = -1, tooltip = -1, tooltipRecall = -1;
     size_t pos = table;
     for (;;) {
         size_t r = x.find("<Row", pos);
@@ -124,6 +125,11 @@ int readSpawnColumns(const std::string& x, SpawnTable& into) {
             squad = column(header, "spawn_squad");
             ammo = column(header, "spawn_ammo");
             cooldown = column(header, "spawn_cooldown");
+            icon = column(header, "spawn_icon");
+            iconCooldown = column(header, "spawn_icon_cooldown");
+            iconRecall = column(header, "spawn_icon_recall");
+            tooltip = column(header, "spawn_tooltip");
+            tooltipRecall = column(header, "spawn_tooltip_recall");
             if (squad < 0) return 0;  // not a table of ours
             continue;
         }
@@ -132,6 +138,11 @@ int readSpawnColumns(const std::string& x, SpawnTable& into) {
         SpawnConfig c;
         c.squad = s;
         c.ammo = cell(cells, ammo);
+        c.icon = cell(cells, icon);
+        c.iconCooldown = cell(cells, iconCooldown);
+        c.iconRecall = cell(cells, iconRecall);
+        c.tooltip = cell(cells, tooltip);
+        c.tooltipRecall = cell(cells, tooltipRecall);
         std::string cd = cell(cells, cooldown);
         if (!cd.empty()) {
             char* stop = nullptr;
