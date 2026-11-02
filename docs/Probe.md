@@ -114,3 +114,18 @@ queues each with `0x292d70(0x542360(world), unit)` - the world's kill manager an
 `squads.xml` columns from the game's table storage (it hooks the row lookup to get it) - the way to give
 `cars.xml` the framework's columns. That hook would clash with MoraleStamina under DefianceLoader, so the storage
 must be found another way. Still to do.
+
+## Saved games probe
+
+The framework keeps its vehicles, squads and cooldowns in memory only, keyed by the vehicle's address: after a load
+a deployed vehicle looks new and spawns a second squad, the saved one belongs to nobody. Before designing the fix,
+the plugin (temporary block "saved games probe" in `plugin.cpp`) logs, all with `probe:`:
+
+- every spawn: the vehicle's and the squad's entity ids;
+- every new world (a mission start or a load), with each remembered id looked up in it - **do ids survive a load?**;
+- for 5 s after it, each spawning vehicle once: id, team, F4's timer and length - **is the cooldown in the save?**;
+- 3 s after it, a scan of entity ids 1..200000: the framework's squads found and how long it took - **can the
+  plugin list the squads of a loaded game?**
+
+Test: van A deployed with its drone out, van B packed up with its cooldown running; save; load that save; then
+restart the game and load it again.

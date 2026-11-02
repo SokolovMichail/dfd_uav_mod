@@ -282,6 +282,8 @@ void finishDying() {
     }
 }
 
+void probeSpawned(void* van, int squadId, const std::string& squad);  // the saved games probe (temporary)
+
 class LogicDllSpawnPort final : public core::SpawnPort {
 public:
     const core::SpawnConfig* config(core::Vehicle* v) override {
@@ -311,6 +313,7 @@ public:
         MsvcString teamStr = msvc(teamName), squadStr = msvc(squad);
         void* s = g_spawn(pos, worldOf(e), &teamStr, &squadStr, 0.0f, g_spawnCtx, nullptr, nullptr, nullptr,
                           nullptr, nullptr, nullptr, -1);
+        if (s) probeSpawned(e, vcall<int>(s, 0x40), squad);
         return s ? vcall<int>(s, 0x40) : 0;
     }
 
@@ -372,6 +375,105 @@ std::unordered_set<void*> g_tracked;
 
 // The supply component an AiDoRechargeState runs ([state+0x20] reference block) and the vehicle it belongs to.
 void* vehicleOfState(void* state) { return ownerOf(objectOf(field(state, 0x20))); }
+
+// ---------------------------------------------------------------- saved games probe (temporary)
+//
+// What a save and a load do to the framework's vehicles and squads, before the fix is designed (docs/Probe.md):
+//   * every spawn is remembered for the whole game run: the vehicle's and the squad's entity ids;
+//   * a new world (the first AiFacet update of another world - a mission start or a load) is logged, and every
+//     remembered id is looked up in it: still there, the same sysname, team, soldiers?
+//   * for kProbeWindowMs after it, every spawning vehicle's AI is logged once: its id, team and F4's timer / length
+//     (is the cooldown in the save?);
+//   * kProbeScanMs after it, entity ids 1..kProbeScanIds are looked up one by one, the framework's squads among them
+//     logged, and how long the scan took (can the plugin list the squads of a loaded game?).
+
+struct ProbeSpawn {
+    int vanId;
+    std::string van;
+    int squadId;
+    std::string squad;
+};
+std::vector<ProbeSpawn> g_probeSpawns;
+void* g_probeWorld = nullptr;
+uint64_t g_probeWorldAt = 0;
+int g_probeWorlds = 0;
+bool g_probeScanned = true;
+std::unordered_set<void*> g_probeSeen;
+constexpr uint64_t kProbeWindowMs = 5000, kProbeScanMs = 3000;
+constexpr int kProbeScanIds = 200000, kProbeMaxWorlds = 20;
+
+int idOf(void* entity) { return vcall<int>(entity, 0x40); }
+
+void probeSpawned(void* van, int squadId, const std::string& squad) {
+    g_probeSpawns.push_back({idOf(van), sysnameOf(van), squadId, squad});
+    g_log("probe: spawn - vehicle id %d '%s', squad id %d '%s'", idOf(van), sysnameOf(van).c_str(), squadId,
+          squad.c_str());
+}
+
+// What the entity with this id is in `world` now.
+void probeLookUp(void* world, const char* what, int id, const std::string& was) {
+    RefBlock* rb = entityById(world, id);
+    if (!rb) {
+        g_log("probe:   %s id %d ('%s'): not in this world", what, id, was.c_str());
+        return;
+    }
+    void* e = rb->object;
+    g_log("probe:   %s id %d ('%s'): found '%s' %p, team %d, soldiers %zu", what, id, was.c_str(), sysnameOf(e).c_str(),
+          e, teamOf(e), vcall<bool>(e, 0x98, 0x10) ? soldiersOf(e) : 0);
+    release(rb);
+}
+
+void probeScan(void* world) {
+    std::unordered_set<std::string> squads;
+    for (const auto& [van, c] : spawnTable()) squads.insert(c.squad);
+    uint64_t start = GetTickCount64();
+    int found = 0, maxId = 0, ours = 0;
+    for (int id = 1; id <= kProbeScanIds; ++id) {
+        RefBlock* rb = entityById(world, id);
+        if (!rb) continue;
+        ++found;
+        maxId = id;
+        void* e = rb->object;
+        std::string name = sysnameOf(e);
+        if (squads.count(name) && ours < 50) {
+            ++ours;
+            const float* p = positionOf(e);
+            g_log("probe:   scan: id %d '%s' team %d soldiers %zu at (%.0f, %.0f, %.0f)", id, name.c_str(), teamOf(e),
+                  soldiersOf(e), p ? p[0] : 0.f, p ? p[1] : 0.f, p ? p[2] : 0.f);
+        }
+        release(rb);
+    }
+    g_log("probe: scan of ids 1..%d: %d entities (highest id %d), %d of the framework's squads, %llu ms", kProbeScanIds,
+          found, maxId, ours, static_cast<unsigned long long>(GetTickCount64() - start));
+}
+
+// Every AiFacet update, every unit.
+void probeTick(void* ai, void* e) {
+    void* world = worldOf(e);
+    uint64_t now = GetTickCount64();
+    if (world != g_probeWorld && g_probeWorlds < kProbeMaxWorlds) {
+        ++g_probeWorlds;
+        g_log("probe: world %p -> %p (%zu vehicles tracked, %zu F4 states, %zu spawns remembered)", g_probeWorld, world,
+              g_tracked.size(), g_states.size(), g_probeSpawns.size());
+        g_probeWorld = world;
+        g_probeWorldAt = now;
+        g_probeSeen.clear();
+        g_probeScanned = false;
+        for (const ProbeSpawn& s : g_probeSpawns) {
+            probeLookUp(world, "vehicle", s.vanId, s.van);
+            probeLookUp(world, "squad", s.squadId, s.squad);
+        }
+    }
+    if (world != g_probeWorld) return;
+    if (now - g_probeWorldAt < kProbeWindowMs && g_probeSeen.insert(ai).second && spawnsSquads(e))
+        g_log("probe:   vehicle id %d '%s' %p team %d: F4 timer %.2f length %.2f, tracked %d", idOf(e),
+              sysnameOf(e).c_str(), e, teamOf(e), vcall<float>(ai, 0xf0, kAbilityPack),
+              vcall<float>(ai, 0xf8, kAbilityPack), static_cast<int>(g_tracked.count(e)));
+    if (!g_probeScanned && now - g_probeWorldAt >= kProbeScanMs) {
+        g_probeScanned = true;
+        probeScan(world);
+    }
+}
 
 // A vehicle has gone into F4 mode: if it spawns, remember it and let the rules know.
 void deployed(void* state) {
@@ -435,6 +537,7 @@ void hookAiUpdate(void* ai, float dt) {
     g_origAiUpdate(ai, dt);
     if (!g_dying.empty()) guarded("kill", [] { finishDying(); });
     void* e = ownerOf(ai);
+    if (e) guarded("probe", [&] { probeTick(ai, e); });
     if (!e || !g_tracked.count(e)) return;
     guarded("tick", [&] {
         core::Vehicle* v = handle(e);
