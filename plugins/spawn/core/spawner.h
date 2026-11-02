@@ -8,6 +8,9 @@
 //   - After the squad dies - killed in battle or with its vehicle's pack-up - the vehicle waits spawn_cooldown
 //     seconds of game time before the next one (cooldownLeft - the binding shows it). Deployed again before the wait
 //     is over, it spawns by itself when it is.
+//   - Saved games: the rules forget everything when the map changes (reset). A vehicle they see for the first time
+//     takes over what the game saved of it (SpawnPort::saved) - the squad it had out, if that squad is still alive,
+//     and the cooldown left - instead of spawning a second squad.
 //
 // The core never touches game memory: it sees the game through SpawnPort, and vehicles are opaque handles.
 #pragma once
@@ -23,6 +26,13 @@ class Vehicle;
 
 // A squad, by the game's entity id; 0 - none.
 using SquadId = int;
+
+// What a saved game kept of a vehicle: the squad it had out (0 - none, or not one of its own) and the seconds of
+// cooldown it had left.
+struct Saved {
+    SquadId squad = 0;
+    float cooldown = 0;
+};
 
 // What the rules need from the game.
 class SpawnPort {
@@ -42,6 +52,8 @@ public:
     virtual void pack(Vehicle* v) = 0;
     // Report a notable event (the binding decides how to log it).
     virtual void event(const char* what, Vehicle* v, SquadId s) = 0;
+    // What the game has saved of a vehicle the rules see for the first time (nothing, in a game not loaded).
+    virtual Saved saved(Vehicle* v) = 0;
 };
 
 // What the rules remember about one vehicle.
@@ -67,6 +79,9 @@ public:
     // Every frame for every vehicle, with the frame's game time: cooldowns run (deployed or not), a deployed vehicle
     // notices its squad's death and spawns when it may. Vehicles the rules do not know are skipped at once.
     void onTick(Vehicle* v, float dt);
+    // The map has changed (a mission started, a game was loaded): every vehicle is forgotten, with no kills - the
+    // squads of the old map are gone with it.
+    void reset() { vehicles_.clear(); }
 
     // Seconds of the vehicle's cooldown still to wait, deployed or not; 0 - none (or a vehicle the rules do not know).
     float cooldownLeft(Vehicle* v) const;

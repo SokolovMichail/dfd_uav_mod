@@ -61,6 +61,11 @@ public:
     }
     void pack(Vehicle* v) override { packed.push_back(v); }
     void event(const char* what, Vehicle*, SquadId) override { events.push_back(what); }
+    std::map<Vehicle*, Saved> saves;  // what a loaded game kept of a vehicle
+    Saved saved(Vehicle* v) override {
+        auto it = saves.find(v);
+        return it == saves.end() ? Saved{} : it->second;
+    }
 };
 
 Vehicle* handle(int n) { return reinterpret_cast<Vehicle*>(static_cast<uintptr_t>(n) * 16); }
@@ -267,6 +272,60 @@ TEST_CASE("each vehicle has its own squad and cooldown") {
     f.spawner.onPacked(f.van);
     CHECK(f.port.killed.size() == 1);
     CHECK(f.spawner.state(second)->squad != 0);
+}
+
+// ================================================================ saved games
+
+TEST_CASE("a loaded vehicle takes back its saved squad instead of spawning a second one") {
+    Fixture f;
+    f.port.living.insert(40304);
+    f.port.saves[f.van] = {40304, 0};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.empty());
+    CHECK(f.kits() == 5);
+    CHECK(f.squad() == 40304);
+    f.spawner.onPacked(f.van);  // and it is that squad that dies with the vehicle
+    CHECK(f.port.killed == std::vector<SquadId>{40304});
+}
+
+TEST_CASE("a saved squad that is dead is not taken back: the vehicle spawns a new one") {
+    Fixture f;
+    f.port.saves[f.van] = {40304, 0};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.size() == 1);
+    CHECK(f.squad() != 40304);
+}
+
+TEST_CASE("a loaded vehicle keeps its saved cooldown") {
+    Fixture f;
+    f.port.saves[f.van] = {0, 42.0f};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.empty());
+    CHECK(f.spawner.cooldownLeft(f.van) == doctest::Approx(42));
+    f.spawner.onTick(f.van, 42.0f);
+    CHECK(f.port.spawned.size() == 1);
+}
+
+TEST_CASE("the saved game is read only when the rules first see a vehicle") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    f.spawner.onPacked(f.van);
+    f.spawner.onTick(f.van, 60.0f);
+    f.port.living.insert(40304);
+    f.port.saves[f.van] = {40304, 30.0f};  // what the game shows now is the rules' own
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.size() == 2);
+    CHECK(f.squad() != 40304);
+}
+
+TEST_CASE("a map change forgets every vehicle and kills nothing") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    f.spawner.onPacked(f.van);
+    f.spawner.reset();
+    CHECK(f.spawner.state(f.van) == nullptr);
+    CHECK(f.spawner.cooldownLeft(f.van) == 0);
+    CHECK(f.port.killed.size() == 1);  // the pack-up's only
 }
 
 // ================================================================ the table columns
