@@ -13,6 +13,14 @@ is deployed (F4). Your mod only describes the vehicle in the game's tables; no c
   F4 shows the wait: greyed out, filling up, and it cannot be pressed until the wait is over.
 - Each squad costs one round of the vehicle's own ammunition - the "kit". No kit left, no squad.
 
+That is a **tethered** vehicle, the default. An **untethered** one (`spawn_tethered` false) only launches:
+
+- Deployed with its cooldown over, it launches `spawn_count` squads, a kit each (as many as it has kits for), and the
+  cooldown starts at once.
+- The squads are on their own from then on: packing up, the vehicle's destruction or the squads' deaths change
+  nothing.
+- One launch per deploy: the next needs a pack-up and a deploy after the cooldown.
+
 On the framework's vehicles F4 shows the vehicle's own pictures and tooltips (see "F4's look"); other vehicles' F4
 stays as the game draws it.
 
@@ -37,7 +45,9 @@ columns it does not know):
 |---|---|---|
 | `spawn_squad` | a `squads.xml` sysname | the squad the vehicle keeps; required |
 | `spawn_ammo` | an `ammunition.xml` sysname | the kit: one round is spent per squad; empty - squads cost nothing |
-| `spawn_cooldown` | seconds | game time after the squad dies before the next one; default 60 |
+| `spawn_cooldown` | seconds | game time after the squad dies (untethered: after the launch) before the next one; default 60 |
+| `spawn_tethered` | `true` / `false` (`0`, `no`) | `true` (default) - the squad belongs to the vehicle; `false` - the vehicle only launches |
+| `spawn_count` | 1 to 20 | squads per launch, untethered vehicles only for now (a tethered one keeps one squad: a saved game keeps the link to one); default 1 |
 | `spawn_icon`, `spawn_icon_cooldown`, `spawn_icon_recall` | UI pictures, e.g. `main\buttons2\pwuav_ready.dds` | F4's look, see below; empty - the framework's defaults |
 | `spawn_tooltip`, `spawn_tooltip_recall` | `locale/strres.xml` keys | F4's tooltips, see below; empty - the framework's defaults |
 

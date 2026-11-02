@@ -142,9 +142,16 @@ core::SpawnTable load() {
             g_log("tables: %d spawning vehicle(s) in %s", n, utf8(f.substr(g_gameDir.size() + 1)).c_str());
         }
     }
-    for (auto& [name, c] : t)
-        g_log("  %s -> %s (kit %s, cooldown %.0f s)", name.c_str(), c.squad.c_str(),
-              c.ammo.empty() ? "none" : c.ammo.c_str(), c.cooldown);
+    for (auto& [name, c] : t) {
+        if (c.tethered)
+            g_log("  %s -> %s, tethered (kit %s, cooldown %.0f s)", name.c_str(), c.squad.c_str(),
+                  c.ammo.empty() ? "none" : c.ammo.c_str(), c.cooldown);
+        else
+            g_log("  %s -> %d x %s, untethered (kit %s, cooldown %.0f s)", name.c_str(), c.count, c.squad.c_str(),
+                  c.ammo.empty() ? "none" : c.ammo.c_str(), c.cooldown);
+        if (c.tethered && c.count > 1)
+            g_log("  %s: spawn_count %d ignored - a tethered vehicle keeps one squad for now", name.c_str(), c.count);
+    }
     if (t.empty()) g_log("tables: no spawning vehicles - is a mod made on the Spawn Framework enabled in MODS?");
     return t;
 }

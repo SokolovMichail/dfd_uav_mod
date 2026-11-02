@@ -11,8 +11,8 @@ the bars' pictures in pack.txt are the defaults.
 """
 
 # The columns a vehicle of the framework may have in cars.xml / tanks.xml (core/config.h).
-SPAWN_COLUMNS = ['spawn_squad', 'spawn_ammo', 'spawn_cooldown', 'spawn_icon', 'spawn_icon_cooldown',
-                 'spawn_icon_recall', 'spawn_tooltip', 'spawn_tooltip_recall']
+SPAWN_COLUMNS = ['spawn_squad', 'spawn_ammo', 'spawn_cooldown', 'spawn_tethered', 'spawn_count', 'spawn_icon',
+                 'spawn_icon_cooldown', 'spawn_icon_recall', 'spawn_tooltip', 'spawn_tooltip_recall']
 
 PICTURES_DIR = 'textures/ui/pictures/Main/buttons2'  # where F4's pictures live (the game's buttons_unpack_n...)
 UNPACK_BUTTON = f'{PICTURES_DIR}/buttons_unpack_n.dds'  # the button the pictures are drawn on

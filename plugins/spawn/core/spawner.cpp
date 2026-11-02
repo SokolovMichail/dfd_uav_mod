@@ -13,7 +13,7 @@ void Spawner::onDeployed(Vehicle* v) {
         it->second.config = c;
         Saved saved = port_.saved(v);
         it->second.cooldown = saved.cooldown > 0 ? saved.cooldown : 0;
-        if (saved.squad && port_.alive(v, saved.squad)) {
+        if (c->tethered && saved.squad && port_.alive(v, saved.squad)) {
             it->second.squad = saved.squad;
             port_.event("squad taken back from the saved game", v, saved.squad);
         }
@@ -21,6 +21,10 @@ void Spawner::onDeployed(Vehicle* v) {
     VehicleState& s = it->second;
     s.deployed = true;
     port_.event("deployed", v, s.squad);
+    if (!s.config->tethered) {
+        if (s.cooldown <= 0) launch(v, s, *s.config);  // the deploy's one launch; none later in it
+        return;
+    }
     if (!s.squad && s.cooldown <= 0) trySpawn(v, s, *s.config);
 }
 
@@ -50,7 +54,7 @@ void Spawner::onTick(Vehicle* v, float dt) {
     if (it == vehicles_.end()) return;
     VehicleState& s = it->second;
     if (s.cooldown > 0) s.cooldown = s.cooldown > dt ? s.cooldown - dt : 0;
-    if (!s.deployed) return;
+    if (!s.deployed || !s.config->tethered) return;
     if (s.squad && !port_.alive(v, s.squad)) {
         port_.event("squad lost: packing up", v, s.squad);
         s.squad = 0;
@@ -87,6 +91,26 @@ void Spawner::trySpawn(Vehicle* v, VehicleState& s, const SpawnConfig& c) {
         port_.event("spawn failed", v, 0);
         s.cooldown = c.cooldown;
     }
+}
+
+// An untethered vehicle's launch: up to unitsPerDeploy() squads, one kit each; the cooldown starts if anything was
+// spent or launched (a spawn that makes nothing still costs its kit, as for a tethered vehicle).
+void Spawner::launch(Vehicle* v, VehicleState& s, const SpawnConfig& c) {
+    int spent = 0;
+    for (int i = 0; i < c.unitsPerDeploy(); ++i) {
+        if (!c.ammo.empty() && !port_.spendKit(v, c.ammo)) {
+            if (spent == 0) {
+                if (!s.noKit) port_.event("no kit left", v, 0);
+                s.noKit = true;
+            }
+            break;
+        }
+        ++spent;
+        s.noKit = false;
+        SquadId q = port_.spawn(v, c.squad);
+        port_.event(q ? "squad launched (untethered)" : "spawn failed", v, q);
+    }
+    if (spent) s.cooldown = c.cooldown;
 }
 
 }  // namespace spawn::core

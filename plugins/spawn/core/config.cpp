@@ -8,6 +8,7 @@
 #include "config.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <vector>
 
@@ -96,6 +97,15 @@ std::string cell(const std::vector<std::string>& row, int col) {
     return col >= 0 && static_cast<size_t>(col) < row.size() ? row[col] : std::string();
 }
 
+// Is a cell a "no" - false, 0, no (any case, spaces around ignored)? Anything else, empty too, is a yes.
+bool isNo(const std::string& value) {
+    size_t a = value.find_first_not_of(" \t"), b = value.find_last_not_of(" \t");
+    if (a == std::string::npos) return false;
+    std::string v = value.substr(a, b - a + 1);
+    for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return v == "false" || v == "0" || v == "no";
+}
+
 }  // namespace
 
 int readSpawnColumns(const std::string& x, SpawnTable& into) {
@@ -103,7 +113,7 @@ int readSpawnColumns(const std::string& x, SpawnTable& into) {
     if (table == std::string::npos || tableEnd == std::string::npos) return 0;
     std::vector<std::string> header;
     int sysname = -1, squad = -1, ammo = -1, cooldown = -1, added = 0;
-    int icon = -1, iconCooldown = -1, iconRecall = -1, tooltip = -1, tooltipRecall = -1;
+    int icon = -1, iconCooldown = -1, iconRecall = -1, tooltip = -1, tooltipRecall = -1, tethered = -1, count = -1;
     size_t pos = table;
     for (;;) {
         size_t r = x.find("<Row", pos);
@@ -130,6 +140,8 @@ int readSpawnColumns(const std::string& x, SpawnTable& into) {
             iconRecall = column(header, "spawn_icon_recall");
             tooltip = column(header, "spawn_tooltip");
             tooltipRecall = column(header, "spawn_tooltip_recall");
+            tethered = column(header, "spawn_tethered");
+            count = column(header, "spawn_count");
             if (squad < 0) return 0;  // not a table of ours
             continue;
         }
@@ -148,6 +160,13 @@ int readSpawnColumns(const std::string& x, SpawnTable& into) {
             char* stop = nullptr;
             float v = std::strtof(cd.c_str(), &stop);
             if (stop != cd.c_str() && v >= 0) c.cooldown = v;
+        }
+        c.tethered = !isNo(cell(cells, tethered));
+        std::string n = cell(cells, count);
+        if (!n.empty()) {
+            char* stop = nullptr;
+            long v = std::strtol(n.c_str(), &stop, 10);
+            if (stop != n.c_str() && v >= 1) c.count = v > kMaxCount ? kMaxCount : static_cast<int>(v);
         }
         into[name] = c;
         ++added;
