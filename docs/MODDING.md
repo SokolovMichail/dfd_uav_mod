@@ -102,7 +102,11 @@ The squad is of its vehicle's team and appears 8 m from it.
 ## Things to know
 
 - **The game replaces whole files.** A mod that ships `cars.xml` replaces the game's and every other mod's; two
-  vehicle mods that both ship it conflict. Ship only the tables you change.
+  vehicle mods that both ship it conflict. Ship only the tables you change - or, for DefianceLoader, ship patches:
+  its table merge adds a mod's `<table>.<mod folder in lower case>.patch.xml` (beside the table) row by row, so
+  mods no longer replace each other's tables. `mod/tools/table_patch.py` turns a full table into a patch of your
+  own rows; the builds' `--patches` do it for both mods here. The players need `[defiance.table-merge]
+  enabled = true` (and `full_file_diff = true` next to mods that ship whole tables).
 - **Where the framework reads the columns.** From the files of the mods enabled in MODS
   (`Documents\My Games\Terminator Dark Fate\mods\mods.json`): every `cars.xml`, `tanks.xml`, `cars.<x>.patch.xml`,
   `tanks.<x>.patch.xml` in the mod folder. A vehicle in several mods takes the last mod's row.

@@ -12,10 +12,12 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+TOOLS = os.path.join(HERE, '..', 'tools')
+sys.path.insert(0, TOOLS)
 sys.path.insert(0, os.path.join(HERE, 'art'))
 from gamefiles import Game  # noqa: E402
 import buttons  # noqa: E402
@@ -35,6 +37,8 @@ def main():
     ap.add_argument('--out', required=True, help='the mod folder, e.g. .../mods/Spawn_Framework (recreated)')
     ap.add_argument('--cache', help='where to unpack the game files (default <out>_game_src)')
     ap.add_argument('--version', default='dev')
+    ap.add_argument('--patches', action='store_true',
+                    help="DefianceLoader's table merge: ship the default tooltips as a strres.xml patch")
     a = ap.parse_args()
     cache = a.cache or a.out + '_game_src'
     shutil.rmtree(a.out, ignore_errors=True)
@@ -55,10 +59,23 @@ def main():
     buttons.make(S(fw.UNPACK_BUTTON), buttons.load(S(fw.DEFAULT_ICON_SOURCE))[0],
                  os.path.join(pictures, fw.DEFAULT_PREFIX))
 
+    if a.patches:  # under the table merge the defaults are the framework's to ship, not every mod's
+        print('== default tooltips (DefianceLoader table merge)')
+        loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
+        os.makedirs(loc)
+        strres = os.path.join(loc, 'strres.xml')
+        shutil.copy(g.extract('loc_en', 'locale/strres.xml', os.path.join(cache, 'loc_en'))[0], strres)
+        for key, row, text in fw.DEFAULT_STRINGS:
+            subprocess.run([sys.executable, os.path.join(TOOLS, 'patch_table.py'), strres, strres + '.tmp', row,
+                            '--clone', key, f'content={text}'], check=True, env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+            os.replace(strres + '.tmp', strres)
+        fw.to_patches(a.out, {strres: [k for k, _, _ in fw.DEFAULT_STRINGS]})
+
     # The MODS menu lists only mods with an icon; until the mod has its own, the game's example mod's.
     shutil.copy(os.path.join(a.game, 'mods', 'mod_example_1', 'basis', 'mod_icon.dds'),
                 os.path.join(a.out, 'basis', 'mod_icon.dds'))
-    info = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description'])
+    info = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description']
+                + (fw.PATCHES_NOTE if a.patches else ''))
     with open(os.path.join(a.out, 'mod.json'), 'w', encoding='utf-8') as f:
         json.dump(info, f, indent=4)
     print(f'Spawn Framework -> {a.out}')

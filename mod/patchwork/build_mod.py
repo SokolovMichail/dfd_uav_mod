@@ -39,6 +39,7 @@ from gamefiles import Game  # noqa: E402
 import buttons  # noqa: E402
 import framework as fw  # noqa: E402
 from front_drone import front_drone  # noqa: E402
+from framework import to_patches  # noqa: E402
 
 KIT = 'uav_kit'
 KITS = 5
@@ -149,6 +150,8 @@ def main():
     ap.add_argument('--cache', help='where to unpack the game files (default <out>_game_src)')
     ap.add_argument('--version', default='dev')
     ap.add_argument('--test-vehicles', action='store_true', help='add the test vehicles (TEST_UNITS)')
+    ap.add_argument('--patches', action='store_true',
+                    help="DefianceLoader's table merge: ship the tables as patches of the mod's own rows")
     a = ap.parse_args()
     tests = TEST_UNITS if a.test_vehicles else []
     cache = a.cache or a.out + '_game_src'
@@ -196,10 +199,20 @@ def main():
     clone_rows(S('loc_en', 'locale/strres.xml'), os.path.join(loc, 'strres.xml'),
                [(key, row, [f'content={text}']) for key, row, text in STRINGS + (TEST_STRINGS if tests else [])])
 
+    if a.patches:
+        print('== DefianceLoader table merge: patches of the mod\'s own rows')
+        own = {os.path.join(species, f'{table}.xml'): [new for new, _, _ in rows] for table, rows in tables.items()}
+        own[os.path.join(loc, 'cars.xml')] = [u['van'] for u in UNITS + tests]
+        own[os.path.join(loc, 'squads.xml')] = [u['squad'] for u in UNITS]
+        own[os.path.join(loc, 'strres.xml')] = [k for k, _, _ in STRINGS + (TEST_STRINGS if tests else [])
+                                                if k not in {d for d, _, _ in fw.DEFAULT_STRINGS}]  # the framework's
+        to_patches(a.out, own)
+
     # The MODS menu lists only mods with an icon; until the mod has its own, the game's example mod's.
     shutil.copy(os.path.join(a.game, 'mods', 'mod_example_1', 'basis', 'mod_icon.dds'),
                 os.path.join(a.out, 'basis', 'mod_icon.dds'))
-    info = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description'])
+    info = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description']
+                + (fw.PATCHES_NOTE if a.patches else ''))
     with open(os.path.join(a.out, 'mod.json'), 'w', encoding='utf-8') as f:
         json.dump(info, f, indent=4)
     print(f'Patchwork UAV -> {a.out}')

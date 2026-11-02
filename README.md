@@ -52,6 +52,12 @@ DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` ins
 **Spawn Framework** and **Patchwork UAV** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares). The vans are in the Resistance and
 Founders skirmish armies.
 
+`deploy_defiance` installs the DefianceLoader build of the plugin and the mods' table-merge build: their tables as
+patches of their own rows (`<table>.<mod folder>.patch.xml`), so they no longer replace other mods' tables. It needs
+`[defiance.table-merge] enabled = true` in `DefianceLoader\config\settings.ini`, and `full_file_diff = true` next to
+mods that ship whole tables (HEMTT Spares). Without the table merge, `deploy_defiance_whole_tables` installs the
+mods with whole tables. `default_army.toml` (the skirmish armies) is not a table: it is still a whole file.
+
 Development builds add the framework's test vehicles to Patchwork UAV (the CMake option `SPAWN_TEST_VEHICLES`, on
 by default; off for a release): the **Test Troop Van (untethered)** in the Resistance army - two marksman squads per
 launch, the framework's default F4 pictures.

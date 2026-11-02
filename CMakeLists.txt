@@ -66,29 +66,44 @@ set(PATCHWORK_TEST_ARGS "")
 if(SPAWN_TEST_VEHICLES)
     set(PATCHWORK_TEST_ARGS --test-vehicles)
 endif()
-add_custom_target(mod
-        COMMAND ${Python3_EXECUTABLE} mod/framework/build_framework_mod.py --game "${GAME_DIR}"
-                --out "${FRAMEWORK_MOD_STAGE}" --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION}
-        COMMAND ${Python3_EXECUTABLE} mod/patchwork/build_mod.py --game "${GAME_DIR}" --out "${MOD_STAGE}"
-                --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION} ${PATCHWORK_TEST_ARGS}
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        COMMENT "Build the mods -> ${FRAMEWORK_MOD_STAGE}, ${MOD_STAGE}"
-        USES_TERMINAL VERBATIM)
+# The DefianceLoader builds of the mods (--patches): tables as patches of each mod's own rows for DefianceLoader's
+# table merge, instead of whole tables (framework.py).
+set(DEFIANCE_FRAMEWORK_MOD_STAGE "${CMAKE_BINARY_DIR}/stage/defiance/mods/Spawn_Framework")
+set(DEFIANCE_MOD_STAGE "${CMAKE_BINARY_DIR}/stage/defiance/mods/Patchwork_UAV")
+macro(mod_target name framework_stage patchwork_stage)
+    add_custom_target(${name}
+            COMMAND ${Python3_EXECUTABLE} mod/framework/build_framework_mod.py --game "${GAME_DIR}"
+                    --out "${framework_stage}" --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION}
+                    ${ARGN}
+            COMMAND ${Python3_EXECUTABLE} mod/patchwork/build_mod.py --game "${GAME_DIR}" --out "${patchwork_stage}"
+                    --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION} ${PATCHWORK_TEST_ARGS}
+                    ${ARGN}
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            COMMENT "Build the mods -> ${framework_stage}, ${patchwork_stage}"
+            USES_TERMINAL VERBATIM)
+endmacro()
+mod_target(mod "${FRAMEWORK_MOD_STAGE}" "${MOD_STAGE}")
+mod_target(mod_defiance "${DEFIANCE_FRAMEWORK_MOD_STAGE}" "${DEFIANCE_MOD_STAGE}" --patches)
 
-# ---- deploy: the standalone plugin and the example mod into the game (the game must be closed). Removes the
+# ---- deploy: the standalone plugin and the mods into the game (the game must be closed). Removes the
 # DefianceLoader build of the plugin if it is there (both at once do not work), and the probe. bin\winhttp.dll is
 # left as it is: the game's is already a loader of bin\plugins\*.dll - ours, or another program's (the trainer's).
 # deploy_with_loader - the same plus our loader, bin\winhttp.dll (it replaces the one there).
-# deploy_defiance - the DefianceLoader build instead (DefianceLoader must be installed): spawn_framework.dll and its
-# manifest into DefianceLoader\plugins; removes the standalone bin\plugins\SpawnFramework.dll. Switch between the two
-# with these targets.
-set(DEPLOY_MOD  # shared by all three: the probe out, the mods in
-        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnProbe.dll" "${GAME_DIR}/bin/plugins/SpawnProbe.ini"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/SpawnProbe"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Spawn_Framework"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${FRAMEWORK_MOD_STAGE}" "${GAME_DIR}/mods/Spawn_Framework"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/Patchwork_UAV")
+# deploy_defiance - the DefianceLoader build instead (DefianceLoader must be installed, its table merge on):
+# spawn_framework.dll and its manifest into DefianceLoader\plugins, the mods' DefianceLoader build (table patches);
+# removes the standalone bin\plugins\SpawnFramework.dll. deploy_defiance_whole_tables - the same with the mods'
+# whole tables, for DefianceLoader without the table merge. Switch between them with these targets.
+macro(deploy_mods var framework_stage patchwork_stage)
+    set(${var}
+            COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnProbe.dll" "${GAME_DIR}/bin/plugins/SpawnProbe.ini"
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/SpawnProbe"
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Spawn_Framework"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${framework_stage}" "${GAME_DIR}/mods/Spawn_Framework"
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${patchwork_stage}" "${GAME_DIR}/mods/Patchwork_UAV")
+endmacro()
+deploy_mods(DEPLOY_MOD "${FRAMEWORK_MOD_STAGE}" "${MOD_STAGE}")
+deploy_mods(DEPLOY_DEFIANCE_MOD "${DEFIANCE_FRAMEWORK_MOD_STAGE}" "${DEFIANCE_MOD_STAGE}")
 set(DEPLOY_PLUGIN_AND_MOD
         COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.dll"
                 "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.plugin.json"
@@ -107,14 +122,22 @@ add_custom_target(deploy_with_loader
         DEPENDS winhttp SpawnFramework mod
         COMMENT "Install winhttp.dll, SpawnFramework.dll, mods\\Spawn_Framework and mods\\Patchwork_UAV into ${GAME_DIR}"
         VERBATIM)
-add_custom_target(deploy_defiance
+set(DEPLOY_DEFIANCE_PLUGIN
         COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnFramework.dll"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/DefianceLoader/plugins"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:spawn_framework>
-                "${CMAKE_CURRENT_BINARY_DIR}/spawn_framework.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"
+                "${CMAKE_CURRENT_BINARY_DIR}/spawn_framework.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/")
+add_custom_target(deploy_defiance
+        ${DEPLOY_DEFIANCE_PLUGIN}
+        ${DEPLOY_DEFIANCE_MOD}
+        DEPENDS spawn_framework mod_defiance
+        COMMENT "Install the DefianceLoader plugin spawn_framework.dll and the mods' table-merge build into ${GAME_DIR}"
+        VERBATIM)
+add_custom_target(deploy_defiance_whole_tables
+        ${DEPLOY_DEFIANCE_PLUGIN}
         ${DEPLOY_MOD}
         DEPENDS spawn_framework mod
-        COMMENT "Install the DefianceLoader plugin spawn_framework.dll, mods\\Spawn_Framework and mods\\Patchwork_UAV into ${GAME_DIR}"
+        COMMENT "Install the DefianceLoader plugin spawn_framework.dll and the mods with whole tables into ${GAME_DIR}"
         VERBATIM)
 
 # ---- Phase 0 probe (bin\plugins\SpawnProbe.dll) and its test vehicle (mods\SpawnProbe)

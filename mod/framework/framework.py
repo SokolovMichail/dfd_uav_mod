@@ -41,6 +41,26 @@ DEFAULT_STRINGS = [
     (DEFAULT_TIP_RECALL + '_add', 'order_pack_add', 'The next unit is ready after a cooldown.'),
 ]
 
+# The DefianceLoader builds (--patches): each mod ships its tables as patches of its own rows -
+# <table>.<mod folder in lower case>.patch.xml beside the table - which DefianceLoader's table merge adds to the
+# game's, instead of whole tables that replace each other's (HEMTT Spares' cars.xml...). default_army.toml is not
+# a table and stays whole.
+PATCHES_NOTE = ('\nDefianceLoader build: needs DefianceLoader\'s table merge - [defiance.table-merge] enabled = true '
+                '(and full_file_diff = true next to mods that ship whole tables) in DefianceLoader\\config\\'
+                'settings.ini.')
+
+
+def to_patches(mod_dir, own):
+    """Replace each table of `own` (its path -> the sysnames of the mod's own rows) with a patch of those rows,
+    named for the mod folder."""
+    import os
+    from table_patch import make_patch
+    mod = os.path.basename(os.path.normpath(mod_dir)).lower()
+    for path, rows in own.items():
+        make_patch(path, path[:-len('.xml')] + f'.{mod}.patch.xml', rows)
+        os.remove(path)
+
+
 # F4's layout with the bars: "progress_bar" over the deploy button (its picture, filled with the cooldown picture
 # while the wait runs), "progress_bar_2" over the pack-up one. Drawn over the buttons, they take no clicks.
 PACK_LAYOUT = 'scripts/ui/AbilityButtons/pack.txt'
