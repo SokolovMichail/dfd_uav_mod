@@ -129,3 +129,17 @@ the plugin (temporary block "saved games probe" in `plugin.cpp`) logs, all with 
 
 Test: van A deployed with its drone out, van B packed up with its cooldown running; save; load that save; then
 restart the game and load it again.
+
+Results (2026-11-02, a save and two loads in one game run):
+
+- **Entity ids survive a load**: the vans and the drone that was out came back with the same ids.
+- **F4's timer and length are saved**: the van on cooldown came back with timer 59 of length 60.
+- Without the fix, the deployed van looked new after the load and spawned a second drone; the saved one belonged to
+  nobody.
+- The scan of ids 1..200000 found the ~29000 entities of a mission in under 16 ms (not needed in the end).
+- A kill check pending while the game was paused ran in the next map and faulted (caught by the guard): the plugin
+  touched the old, deleted map.
+
+The fix (`plugin.cpp`, "Saved games"): the plugin forgets everything when the map changes; F4's length holds minus
+the squad's id while the squad is out (the timer, the cooldown left, as before); a vehicle seen for the first time
+after a load takes both back. F4 modes that end are handled on the next update of the same map. The probe is gone.

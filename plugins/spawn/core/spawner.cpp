@@ -11,6 +11,12 @@ void Spawner::onDeployed(Vehicle* v) {
         if (!c) return;  // not ours: never remembered, so its ticks cost one lookup
         it = vehicles_.emplace(v, VehicleState{}).first;
         it->second.config = c;
+        Saved saved = port_.saved(v);
+        it->second.cooldown = saved.cooldown > 0 ? saved.cooldown : 0;
+        if (saved.squad && port_.alive(v, saved.squad)) {
+            it->second.squad = saved.squad;
+            port_.event("squad taken back from the saved game", v, saved.squad);
+        }
     }
     VehicleState& s = it->second;
     s.deployed = true;

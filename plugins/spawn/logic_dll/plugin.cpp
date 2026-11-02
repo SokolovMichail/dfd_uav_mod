@@ -213,6 +213,7 @@ struct Known {
     void* world;
     std::string name;
     bool showing = false;  // the cooldown button is on (taken off once when the wait is over)
+    SquadId linked = 0;    // the squad F4's length holds (see "Saved games")
 };
 
 // The vehicle's abilities - the buttons of its command panel. Each has an "enabled" byte, which is also whether its
@@ -223,8 +224,18 @@ struct Known {
 // F4 (Pack, 7) keeps the cooldown in its own timer: game.dll's F4 button does not draw ability timers by itself (it
 // is a two-state TwiceAbilityWindow, not a TimerAbilityWindow), so the plugin's game.dll part (panel.cpp) makes it
 // grey out, fill its progress bar and refuse presses while the timer runs.
+//
+// Saved games. A save keeps the abilities' timers and lengths, and the entity ids; it does not keep the plugin's
+// memory, nor the vehicles' addresses. So F4's two values carry what the rules need to go on after a load:
+//   * cooldown running - the timer is the time left (the length is the cooldown, for the bar);
+//   * squad out - the timer is 0 and the length is minus the squad's id. Nothing else reads F4's length (the game
+//     never starts F4's timer from it, and the button reads it only while the timer runs); a minus can never be a
+//     cooldown, and a float holds an id exactly (ids are ~40000, a float is exact up to 16.7 million).
+// A vehicle the rules see for the first time after a load gets both back (LogicDllSpawnPort::saved) - its squad
+// only if it is still alive, of the vehicle's own spawn_squad and team.
 constexpr int kAbilityPack = 7;
-constexpr size_t kSetAbilityTimer = 0x108, kSetAbilityLength = 0x110;
+constexpr size_t kGetAbilityTimer = 0xf0, kGetAbilityLength = 0xf8, kSetAbilityTimer = 0x108,
+                 kSetAbilityLength = 0x110;
 
 // Show the cooldown on the vehicle's AI: F4's timer at `left` seconds of `length`; left 0 - none.
 void showCooldown(void* ai, float left, float length) {
@@ -282,8 +293,6 @@ void finishDying() {
     }
 }
 
-void probeSpawned(void* van, int squadId, const std::string& squad);  // the saved games probe (temporary)
-
 class LogicDllSpawnPort final : public core::SpawnPort {
 public:
     const core::SpawnConfig* config(core::Vehicle* v) override {
@@ -313,7 +322,6 @@ public:
         MsvcString teamStr = msvc(teamName), squadStr = msvc(squad);
         void* s = g_spawn(pos, worldOf(e), &teamStr, &squadStr, 0.0f, g_spawnCtx, nullptr, nullptr, nullptr,
                           nullptr, nullptr, nullptr, -1);
-        if (s) probeSpawned(e, vcall<int>(s, 0x40), squad);
         return s ? vcall<int>(s, 0x40) : 0;
     }
 
@@ -342,6 +350,27 @@ public:
         auto it = g_known.find(v);
         g_log("%s: '%s' %p squad %d", what, it == g_known.end() ? "?" : it->second.name.c_str(),
               static_cast<void*>(v), s);
+    }
+
+    // F4's timer and length, as the save kept them (see "Saved games").
+    core::Saved saved(core::Vehicle* v) override {
+        core::Saved out;
+        void* e = entity(v);
+        void* ai = aiOf(e);
+        if (!ai) return out;
+        float timer = vcall<float>(ai, kGetAbilityTimer, kAbilityPack);
+        float length = vcall<float>(ai, kGetAbilityLength, kAbilityPack);
+        if (timer > 0) out.cooldown = timer;
+        if (length > -0.5f) return out;
+        auto id = static_cast<SquadId>(-length + 0.5f);
+        const core::SpawnConfig* c = config(v);
+        RefBlock* rb = entityById(knownWorld(v), id);
+        if (rb && c && sysnameOf(rb->object) == c->squad && teamOf(rb->object) == teamOf(e)) out.squad = id;
+        if (g_logEvents)
+            g_log("saved game: '%s' %p - F4 timer %.1f, squad %d%s", sysnameOf(e).c_str(), e, timer, id,
+                  out.squad ? "" : " (not its own any more)");
+        release(rb);
+        return out;
     }
 
 private:
@@ -376,109 +405,16 @@ std::unordered_set<void*> g_tracked;
 // The supply component an AiDoRechargeState runs ([state+0x20] reference block) and the vehicle it belongs to.
 void* vehicleOfState(void* state) { return ownerOf(objectOf(field(state, 0x20))); }
 
-// ---------------------------------------------------------------- saved games probe (temporary)
-//
-// What a save and a load do to the framework's vehicles and squads, before the fix is designed (docs/Probe.md):
-//   * every spawn is remembered for the whole game run: the vehicle's and the squad's entity ids;
-//   * a new world (the first AiFacet update of another world - a mission start or a load) is logged, and every
-//     remembered id is looked up in it: still there, the same sysname, team, soldiers?
-//   * for kProbeWindowMs after it, every spawning vehicle's AI is logged once: its id, team and F4's timer / length
-//     (is the cooldown in the save?);
-//   * kProbeScanMs after it, entity ids 1..kProbeScanIds are looked up one by one, the framework's squads among them
-//     logged, and how long the scan took (can the plugin list the squads of a loaded game?).
-
-struct ProbeSpawn {
-    int vanId;
-    std::string van;
-    int squadId;
-    std::string squad;
-};
-std::vector<ProbeSpawn> g_probeSpawns;
-void* g_probeWorld = nullptr;
-uint64_t g_probeWorldAt = 0;
-int g_probeWorlds = 0;
-bool g_probeScanned = true;
-std::unordered_set<void*> g_probeSeen;
-constexpr uint64_t kProbeWindowMs = 5000, kProbeScanMs = 3000;
-constexpr int kProbeScanIds = 200000, kProbeMaxWorlds = 20;
-
-int idOf(void* entity) { return vcall<int>(entity, 0x40); }
-
-void probeSpawned(void* van, int squadId, const std::string& squad) {
-    g_probeSpawns.push_back({idOf(van), sysnameOf(van), squadId, squad});
-    g_log("probe: spawn - vehicle id %d '%s', squad id %d '%s'", idOf(van), sysnameOf(van).c_str(), squadId,
-          squad.c_str());
-}
-
-// What the entity with this id is in `world` now.
-void probeLookUp(void* world, const char* what, int id, const std::string& was) {
-    RefBlock* rb = entityById(world, id);
-    if (!rb) {
-        g_log("probe:   %s id %d ('%s'): not in this world", what, id, was.c_str());
-        return;
-    }
-    void* e = rb->object;
-    g_log("probe:   %s id %d ('%s'): found '%s' %p, team %d, soldiers %zu", what, id, was.c_str(), sysnameOf(e).c_str(),
-          e, teamOf(e), vcall<bool>(e, 0x98, 0x10) ? soldiersOf(e) : 0);
-    release(rb);
-}
-
-void probeScan(void* world) {
-    std::unordered_set<std::string> squads;
-    for (const auto& [van, c] : spawnTable()) squads.insert(c.squad);
-    uint64_t start = GetTickCount64();
-    int found = 0, maxId = 0, ours = 0;
-    for (int id = 1; id <= kProbeScanIds; ++id) {
-        RefBlock* rb = entityById(world, id);
-        if (!rb) continue;
-        ++found;
-        maxId = id;
-        void* e = rb->object;
-        std::string name = sysnameOf(e);
-        if (squads.count(name) && ours < 50) {
-            ++ours;
-            const float* p = positionOf(e);
-            g_log("probe:   scan: id %d '%s' team %d soldiers %zu at (%.0f, %.0f, %.0f)", id, name.c_str(), teamOf(e),
-                  soldiersOf(e), p ? p[0] : 0.f, p ? p[1] : 0.f, p ? p[2] : 0.f);
-        }
-        release(rb);
-    }
-    g_log("probe: scan of ids 1..%d: %d entities (highest id %d), %d of the framework's squads, %llu ms", kProbeScanIds,
-          found, maxId, ours, static_cast<unsigned long long>(GetTickCount64() - start));
-}
-
-// Every AiFacet update, every unit.
-void probeTick(void* ai, void* e) {
-    void* world = worldOf(e);
-    uint64_t now = GetTickCount64();
-    if (world != g_probeWorld && g_probeWorlds < kProbeMaxWorlds) {
-        ++g_probeWorlds;
-        g_log("probe: world %p -> %p (%zu vehicles tracked, %zu F4 states, %zu spawns remembered)", g_probeWorld, world,
-              g_tracked.size(), g_states.size(), g_probeSpawns.size());
-        g_probeWorld = world;
-        g_probeWorldAt = now;
-        g_probeSeen.clear();
-        g_probeScanned = false;
-        for (const ProbeSpawn& s : g_probeSpawns) {
-            probeLookUp(world, "vehicle", s.vanId, s.van);
-            probeLookUp(world, "squad", s.squadId, s.squad);
-        }
-    }
-    if (world != g_probeWorld) return;
-    if (now - g_probeWorldAt < kProbeWindowMs && g_probeSeen.insert(ai).second && spawnsSquads(e))
-        g_log("probe:   vehicle id %d '%s' %p team %d: F4 timer %.2f length %.2f, tracked %d", idOf(e),
-              sysnameOf(e).c_str(), e, teamOf(e), vcall<float>(ai, 0xf0, kAbilityPack),
-              vcall<float>(ai, 0xf8, kAbilityPack), static_cast<int>(g_tracked.count(e)));
-    if (!g_probeScanned && now - g_probeWorldAt >= kProbeScanMs) {
-        g_probeScanned = true;
-        probeScan(world);
-    }
-}
+// The map the AiFacets update now (an entity's world). Another one - a mission started or a game was loaded: the
+// rules and the plugin forget everything (no kills: the old map is gone with its squads).
+void* g_world = nullptr;
+void mapChanged(void* world);
 
 // A vehicle has gone into F4 mode: if it spawns, remember it and let the rules know.
 void deployed(void* state) {
     void* e = vehicleOfState(state);
     core::Vehicle* v = e ? handle(e) : nullptr;
+    if (v && worldOf(e) != g_world) mapChanged(worldOf(e));  // an F4 state of a new map ticked before its AiFacets
     if (v) {
         std::string name = sysnameOf(e);
         auto known = g_known.find(v);
@@ -508,6 +444,15 @@ void hookStateTick(void* state) {
     guarded("F4 start", [&] { deployed(state); });
 }
 
+// F4 modes that are over, handled on the next AiFacet update of the same map: when a game is loaded, the old map's
+// F4 states end while it is torn down, and nothing of it may be touched then (its squads may be gone already). A map
+// change drops them.
+struct Ended {
+    core::Vehicle* vehicle;
+    bool gone;  // destroyed, not packed up
+};
+std::vector<Ended> g_ended;
+
 // AiDoRechargeState slot 0 - the deleting destructor: F4 mode is over. A vehicle that is gone with it (its supply
 // component has no owner any more) is destroyed, not packed up.
 void* hookStateDtor(void* state, unsigned flags) {
@@ -515,44 +460,74 @@ void* hookStateDtor(void* state, unsigned flags) {
     if (it != g_states.end()) {
         core::Vehicle* v = it->second;
         g_states.erase(it);
-        if (v) {
-            guarded("F4 end", [&] {
-                if (vehicleOfState(state) == entity(v)) {
-                    g_spawner.onPacked(v);
-                } else {
-                    g_spawner.onRemoved(v);
-                    g_tracked.erase(entity(v));
-                    g_known.erase(v);
-                }
-            });
-        }
+        if (v) guarded("F4 end", [&] { g_ended.push_back({v, vehicleOfState(state) != entity(v)}); });
     }
     return g_origStateDtor(state, flags);
 }
 
-// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock. While a vehicle's cooldown runs, F4's
-// timer is set to the rules' time left (so the game's own countdown of it never drifts away), and cleared once when
-// the wait is over.
+void finishEnded() {
+    std::vector<Ended> ended;
+    ended.swap(g_ended);
+    for (const Ended& x : ended) {
+        if (!x.gone) {
+            g_spawner.onPacked(x.vehicle);
+            continue;
+        }
+        g_spawner.onRemoved(x.vehicle);
+        g_tracked.erase(entity(x.vehicle));
+        g_known.erase(x.vehicle);
+    }
+}
+
+void mapChanged(void* world) {
+    if (g_world)
+        g_log("map changed: %zu spawning vehicle(s) forgotten (a saved game keeps their squads and cooldowns in F4)",
+              g_known.size());
+    g_world = world;
+    g_spawner.reset();
+    g_known.clear();
+    g_tracked.clear();
+    g_states.clear();
+    g_ended.clear();
+    g_dying.clear();
+}
+
+// Keep the vehicle's state in F4 (see "Saved games"): while its cooldown runs, F4's timer is the rules' time left
+// (so the game's own countdown of it never drifts away), cleared once when the wait is over; while its squad is out,
+// F4's length is minus the squad's id.
+void showState(void* ai, Known& known, const core::VehicleState& s, float left) {
+    if (left > 0) {
+        showCooldown(ai, left, s.config->cooldown);
+        known.showing = true;
+        known.linked = 0;
+    } else if (known.showing) {
+        showCooldown(ai, 0, 0);
+        known.showing = false;
+    }
+    if (s.squad && known.linked != s.squad) {
+        vcall<void>(ai, kSetAbilityLength, kAbilityPack, -static_cast<float>(s.squad));
+        known.linked = s.squad;
+    }
+}
+
+// AiFacet slot 10 - update(dt), every frame for every vehicle: the rules' clock.
 void hookAiUpdate(void* ai, float dt) {
     g_origAiUpdate(ai, dt);
-    if (!g_dying.empty()) guarded("kill", [] { finishDying(); });
     void* e = ownerOf(ai);
-    if (e) guarded("probe", [&] { probeTick(ai, e); });
-    if (!e || !g_tracked.count(e)) return;
+    if (!e) return;
+    guarded("map", [&] {
+        void* world = worldOf(e);
+        if (world != g_world) mapChanged(world);
+        if (!g_ended.empty()) finishEnded();
+    });
+    if (!g_dying.empty()) guarded("kill", [] { finishDying(); });
+    if (!g_tracked.count(e)) return;
     guarded("tick", [&] {
         core::Vehicle* v = handle(e);
         g_spawner.onTick(v, dt);
         auto known = g_known.find(v);
         const core::VehicleState* s = g_spawner.state(v);
-        if (known == g_known.end() || !s) return;
-        float left = g_spawner.cooldownLeft(v);
-        if (left > 0) {
-            showCooldown(ai, left, s->config->cooldown);
-            known->second.showing = true;
-        } else if (known->second.showing) {
-            showCooldown(ai, 0, 0);
-            known->second.showing = false;
-        }
+        if (known != g_known.end() && s) showState(ai, known->second, *s, g_spawner.cooldownLeft(v));
     });
 }
 

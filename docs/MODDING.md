@@ -76,5 +76,6 @@ The squad is of its vehicle's team and appears 8 m from it.
   `sokolov.spawn-framework`: at the first F4 of any vehicle it lists the spawning vehicles it found
   (`Res_patchwork_van -> Res_patchwork_uav (kit uav_kit, cooldown 60 s)`), then the first deploys, spawns and kills.
 - **Single player only.** Not tested in multiplayer.
-- **Saved games.** A save made while a squad is out is not handled yet: after loading, the squad is not linked to its
-  vehicle any more (the next deploy spawns another).
+- **Saved games.** A vehicle keeps its squad and its cooldown through a save and a load: the framework keeps them in
+  the vehicle's F4 button, which the game saves (its timer - the cooldown left, its length - the squad out). A save
+  made with the framework should load without it too (nothing else reads that length; not tested yet).
