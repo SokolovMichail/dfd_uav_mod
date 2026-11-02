@@ -60,11 +60,17 @@ configure_file(plugins/spawn/spawn_framework.plugin.json.in
 # UAV (mods\Patchwork_UAV)
 set(FRAMEWORK_MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/Spawn_Framework")
 set(MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/Patchwork_UAV")
+# Patchwork UAV with the framework's test vehicles (mod/patchwork/build_mod.py TEST_UNITS) - off for a release.
+option(SPAWN_TEST_VEHICLES "Add the Spawn Framework's test vehicles to Patchwork UAV" ON)
+set(PATCHWORK_TEST_ARGS "")
+if(SPAWN_TEST_VEHICLES)
+    set(PATCHWORK_TEST_ARGS --test-vehicles)
+endif()
 add_custom_target(mod
         COMMAND ${Python3_EXECUTABLE} mod/framework/build_framework_mod.py --game "${GAME_DIR}"
                 --out "${FRAMEWORK_MOD_STAGE}" --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION}
         COMMAND ${Python3_EXECUTABLE} mod/patchwork/build_mod.py --game "${GAME_DIR}" --out "${MOD_STAGE}"
-                --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION}
+                --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION} ${PATCHWORK_TEST_ARGS}
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Build the mods -> ${FRAMEWORK_MOD_STAGE}, ${MOD_STAGE}"
         USES_TERMINAL VERBATIM)

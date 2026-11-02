@@ -51,3 +51,7 @@ the probe. It leaves `bin\winhttp.dll` as it is: that is already a loader of `bi
 DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` installs ours too. Then enable
 **Spawn Framework** and **Patchwork UAV** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares). The vans are in the Resistance and
 Founders skirmish armies.
+
+Development builds add the framework's test vehicles to Patchwork UAV (the CMake option `SPAWN_TEST_VEHICLES`, on
+by default; off for a release): the **Test Troop Van (untethered)** in the Resistance army - two marksman squads per
+launch, the framework's default F4 pictures.

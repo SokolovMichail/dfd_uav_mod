@@ -98,6 +98,27 @@ STRINGS = fw.DEFAULT_STRINGS + [
     (TIP_RECALL + '_add', 'order_pack_add', 'The next drone is ready after a cooldown.'),
 ]
 
+# --test-vehicles (development builds): vehicles that try the framework's other settings, not part of the mod.
+# Test_troop_van - untethered, two squads of the game's Resistance marksmen per launch, a UAV kit each, the
+# framework's default F4 pictures (no spawn_icon*) and tooltip keys of its own.
+TEST_TIP, TEST_TIP_RECALL = 'test_launch', 'test_recall'
+TEST_UNITS = [
+    dict(van='Test_troop_van', van_from='Res_van', van_name='Test Troop Van (untethered)',
+         van_stats=F4 + ['gun_mounts=res_van_passenger_gun1,res_van_passenger_gun2,res_van_passenger_gun3,'
+                         'res_van_passenger_gun4,res_van_passenger_gun5,uav_kit_mount_van',
+                         f'ammunition={KIT}:{KITS}'],
+         columns=f'spawn_squad=Res_marksmans;spawn_ammo={KIT};spawn_cooldown=30;spawn_tethered=false;'
+                 f'spawn_count=2;spawn_tooltip={TEST_TIP};spawn_tooltip_recall={TEST_TIP_RECALL}'),
+]
+TEST_STRINGS = [
+    (TEST_TIP, 'order_unpack', 'Launch squads (%s)'),
+    (TEST_TIP + '_desc', 'order_unpack_desc', 'Test: the vehicle launches two marksman squads and packs up again.'),
+    (TEST_TIP + '_add', 'order_unpack_add', 'Untethered: the squads are on their own. Next launch after the cooldown.'),
+    (TEST_TIP_RECALL, 'order_pack', 'Mobile mode (%s)'),
+    (TEST_TIP_RECALL + '_desc', 'order_pack_desc', 'The vehicle packs up. Its squads stay.'),
+    (TEST_TIP_RECALL + '_add', 'order_pack_add', 'Test vehicle of the Spawn Framework.'),
+]
+
 MOD_JSON = {
     'name': 'Patchwork UAV',
     'description': ('Two vans that keep a recon drone in the air while deployed (F4): the Integrators\' Recon Van '
@@ -127,7 +148,9 @@ def main():
     ap.add_argument('--out', required=True, help='the mod folder, e.g. .../mods/Patchwork_UAV (recreated)')
     ap.add_argument('--cache', help='where to unpack the game files (default <out>_game_src)')
     ap.add_argument('--version', default='dev')
+    ap.add_argument('--test-vehicles', action='store_true', help='add the test vehicles (TEST_UNITS)')
     a = ap.parse_args()
+    tests = TEST_UNITS if a.test_vehicles else []
     cache = a.cache or a.out + '_game_src'
     shutil.rmtree(a.out, ignore_errors=True)
     g = Game(a.game)
@@ -136,12 +159,14 @@ def main():
     print('== tables')
     species = os.path.join(a.out, 'basis', 'scripts', 'species')
     os.makedirs(species)
-    for table, rows in ROWS.items():
+    tables = dict(ROWS, cars=ROWS['cars'] + [(t['van'], t['van_from'], t['van_stats']) for t in tests])
+    for table, rows in tables.items():
         clone_rows(S('base', f'scripts/species/{table}.xml'), os.path.join(species, f'{table}.xml'), rows)
     cars = os.path.join(species, 'cars.xml')
     look = ';'.join(f'{k}={v}' for k, v in LOOK.items())
     tool('add_columns.py', cars, cars, ','.join(fw.SPAWN_COLUMNS),
-         *[f'{u["van"]}:spawn_squad={u["squad"]};spawn_ammo={KIT};spawn_cooldown=60;{look}' for u in UNITS])
+         *[f'{u["van"]}:spawn_squad={u["squad"]};spawn_ammo={KIT};spawn_cooldown=60;{look}' for u in UNITS],
+         *[f'{t["van"]}:{t["columns"]}' for t in tests])
 
     print('== skirmish armies')
     edits, anchors = [], dict(SKIRMISH)
@@ -149,6 +174,9 @@ def main():
         for faction, anchor in anchors.items():
             edits.append(f'add-car:{faction}:{anchor}:{u["van"]}')
             anchors[faction] = u['van']
+    for t in tests:  # the Resistance's army only
+        edits.append(f'add-car:resistance:{anchors["resistance"]}:{t["van"]}')
+        anchors['resistance'] = t['van']
     tool('patch_army_toml.py', S('base', 'scripts/default_army.toml'),
          os.path.join(a.out, 'basis', 'scripts', 'default_army.toml'), *edits)
 
@@ -162,11 +190,11 @@ def main():
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
     os.makedirs(loc)
     clone_rows(S('loc_en', 'locale/cars.xml'), os.path.join(loc, 'cars.xml'),
-               [(u['van'], u['van_from'], [f'content={u["van_name"]}']) for u in UNITS])
+               [(u['van'], u['van_from'], [f'content={u["van_name"]}']) for u in UNITS + tests])
     clone_rows(S('loc_en', 'locale/squads.xml'), os.path.join(loc, 'squads.xml'),
                [(u['squad'], 'Lgn_swarm', [f'content={u["squad_name"]}']) for u in UNITS])
     clone_rows(S('loc_en', 'locale/strres.xml'), os.path.join(loc, 'strres.xml'),
-               [(key, row, [f'content={text}']) for key, row, text in STRINGS])
+               [(key, row, [f'content={text}']) for key, row, text in STRINGS + (TEST_STRINGS if tests else [])])
 
     # The MODS menu lists only mods with an icon; until the mod has its own, the game's example mod's.
     shutil.copy(os.path.join(a.game, 'mods', 'mod_example_1', 'basis', 'mod_icon.dds'),
