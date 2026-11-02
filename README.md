@@ -1,8 +1,8 @@
 # Spawn Framework + Patchwork UAV
 
 A mod for Terminator: Dark Fate - Defiance (GOG 1.09.1221). A vehicle deployed in F4 mode keeps a squad of its own
-next to it - the **Spawn Framework** (a plugin), and **Patchwork UAV**, its example mod: two vans that keep a recon
-drone in the air while deployed.
+next to it - the **Spawn Framework** (a plugin and a small game mod, shared by every mod made on it), and
+**Patchwork UAV**, a mod made on it: two vans that keep a recon drone in the air while deployed.
 
 - Integrators' **Recon Van** (on their gun truck) - a clean drone, a little slower than the Legion's swarm scouts.
 - Resistance's **Patchwork UAV Van** - one working drone put together from ten wrecked Legion scouts. Slow.
@@ -24,7 +24,9 @@ loader, `common/patch.h` and `common/guard.h`, `re/` and `mod/tools/`.
 |---|---|
 | `plugins/spawn/core/` | the rules (one squad per vehicle, kits, cooldown) and reading the framework's table columns - no Windows, no game memory |
 | `plugins/spawn/logic_dll/` | the binding to today's `logic.dll`: hooks, engine calls, finding and patching; `standalone.cpp` / `defiance.cpp` - the two builds |
-| `mod/build_mod.py` | the example mod's data, from the installed game's current files |
+| `mod/framework/` | the Spawn Framework mod (`build_framework_mod.py`), what mods made on it share (`framework.py`), the F4 picture tool (`art/buttons.py`) |
+| `mod/patchwork/` | Patchwork UAV (`build_mod.py`) and its drone icon (`art/front_drone.py`) |
+| `mod/tools/` | the table and archive tools both builds use |
 | `plugins/spawn_probe/`, `mod/probe/` | the Phase 0 probe (kept for reference) |
 | `tests/` | `core_test` - the rules through a test port |
 
@@ -44,8 +46,8 @@ cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug
 cmake --build cmake-build-debug --target deploy
 ```
 
-`deploy` (the game must be closed) installs `bin\plugins\SpawnFramework.dll` and `mods\Patchwork_UAV`, and removes
+`deploy` (the game must be closed) installs `bin\plugins\SpawnFramework.dll`, `mods\Spawn_Framework` and `mods\Patchwork_UAV`, and removes
 the probe. It leaves `bin\winhttp.dll` as it is: that is already a loader of `bin\plugins\*.dll` (ours from
 DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` installs ours too. Then enable
-**Patchwork UAV** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares). The vans are in the Resistance and
+**Spawn Framework** and **Patchwork UAV** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares). The vans are in the Resistance and
 Founders skirmish armies.
