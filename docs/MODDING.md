@@ -13,11 +13,15 @@ is deployed (F4). Your mod only describes the vehicle in the game's tables; no c
   F4 shows the wait: greyed out, filling up, and it cannot be pressed until the wait is over.
 - Each squad costs one round of the vehicle's own ammunition - the "kit". No kit left, no squad.
 
-On the framework's vehicles F4 has pictures and tooltips of its own: the mod's `scripts/ui/AbilityButtons/pack.txt`
-adds two progress bars over F4's buttons - `progress_bar` on the deploy button (its picture when ready, and the
-cooldown), `progress_bar_2` on the pack-up one - and the framework switches the buttons' tooltip keys to
-`spawn_deploy` and `spawn_recall` (rows of `locale/strres.xml`, each with `_desc` and `_add`, `%s` - the hotkey).
-Other vehicles' F4 stays as the game draws it.
+That is a **tethered** vehicle, the default. An **untethered** one (`spawn_tethered` false) only launches:
+
+- Deployed with its cooldown over, it launches `spawn_count` squads, a kit each (as many as it has kits for), the
+  cooldown starts at once, and the vehicle packs up again by itself: F4 is its launch button.
+- The squads are on their own from then on: packing up, the vehicle's destruction or the squads' deaths change
+  nothing.
+
+On the framework's vehicles F4 shows the vehicle's own pictures and tooltips (see "F4's look"); other vehicles' F4
+stays as the game draws it.
 
 Patchwork UAV, the framework's example mod, adds two vans that keep a recon drone in the air.
 
@@ -25,20 +29,26 @@ Patchwork UAV, the framework's example mod, adds two vans that keep a recon dron
 
 | Part | Where | What it does |
 |---|---|---|
-| Plugin | `bin\winhttp.dll` + `bin\plugins\SpawnFramework.dll`, or the DefianceLoader plugin `DefianceLoader\plugins\spawn_framework.dll` | the mechanics, in the game's `logic.dll` |
+| Plugin | `bin\winhttp.dll` + `bin\plugins\SpawnFramework.dll`, or the DefianceLoader plugin `DefianceLoader\plugins\spawn_framework.dll` | the mechanics, in the game's `logic.dll` and `game.dll` |
+| Spawn Framework mod | `mods\Spawn_Framework` | F4's layout (`scripts/ui/AbilityButtons/pack.txt` with the framework's two progress bars) and the default F4 pictures |
 
-Players install the framework once, then your mod, and enable your mod in the game's MODS menu.
+Players install the framework once - the plugin and its mod - then your mod, and enable both mods in the game's MODS
+menu. Your mod ships no `pack.txt`: every mod made on the framework shares the framework mod's.
 
 ## Make a vehicle
 
-A row of `scripts/species/cars.xml` or `tanks.xml`, with three columns of the framework added to the table (the
-game ignores columns it does not know):
+A row of `scripts/species/cars.xml` or `tanks.xml`, with the framework's columns added to the table (the game ignores
+columns it does not know):
 
 | Column | Value | |
 |---|---|---|
 | `spawn_squad` | a `squads.xml` sysname | the squad the vehicle keeps; required |
 | `spawn_ammo` | an `ammunition.xml` sysname | the kit: one round is spent per squad; empty - squads cost nothing |
-| `spawn_cooldown` | seconds | game time after the squad dies before the next one; default 60 |
+| `spawn_cooldown` | seconds | game time after the squad dies (untethered: after the launch) before the next one; default 60 |
+| `spawn_tethered` | `true` / `false` (`0`, `no`) | `true` (default) - the squad belongs to the vehicle; `false` - the vehicle only launches |
+| `spawn_count` | 1 to 20 | squads per launch, untethered vehicles only for now (a tethered one keeps one squad: a saved game keeps the link to one); default 1 |
+| `spawn_icon`, `spawn_icon_cooldown`, `spawn_icon_recall` | UI pictures, e.g. `main\buttons2\pwuav_ready.dds` | F4's look, see below; empty - the framework's defaults |
+| `spawn_tooltip`, `spawn_tooltip_recall` | `locale/strres.xml` keys | F4's tooltips, see below; empty - the framework's defaults |
 
 And in the usual columns:
 
@@ -54,6 +64,30 @@ vehicles restock it (`cost_recharge` - what one kit costs). Patchwork UAV's `uav
 `heavy_sg` with `cost_recharge = 200` and `ammo_class = none` (nothing is a target for it, so its launcher never
 fires); the launcher (`guns.xml` `uav_kit_launcher`, a copy of `gl_m6` with `ammunition = uav_kit:1`) sits in a
 mount of the vehicle (`gun_mounts.xml`, a copy of one of the vehicle's own mounts with `gun = uav_kit_launcher`).
+
+### F4's look
+
+The framework mod's `pack.txt` adds two progress bars over F4's buttons; on a framework vehicle the plugin shows
+them with the vehicle's own pictures (any other vehicle's F4 is left alone):
+
+| Column | The picture | Default |
+|---|---|---|
+| `spawn_icon` | the deploy button, ready - and what the cooldown fills over | the generic rifle squad's icon |
+| `spawn_icon_cooldown` | what the cooldown fills it with: the part of the wait still to go | a dim grey copy of it |
+| `spawn_icon_recall` | the pack-up button | it with an arrow down |
+
+Pictures are named the way layouts name them: `main\buttons2\x.dds` is the file
+`basis/textures/ui/pictures/Main/buttons2/x.dds` of your mod. Give them a prefix of your own, so no other mod's
+file is in the way. `mod/framework/art/buttons.py` makes the three from any icon, the way the game draws its own
+timer buttons: `python mod/framework/art/buttons.py <the game's buttons_unpack_n.dds> <icon.dds> <prefix>`.
+
+The tooltips: `spawn_tooltip` (deploy) and `spawn_tooltip_recall` (pack-up) are `locale/strres.xml` keys, each with
+`<key>_desc` and `<key>_add` rows, `%s` - the hotkey - in the first; at most 15 characters (the plugin writes the key
+into the game's own string in place; a longer one shows the default, and the log says so). Your mod's
+`localization/en/basis_en/locale/strres.xml` carries your rows and the framework's defaults (`spawn_deploy`,
+`spawn_recall` - `mod/framework/framework.py` has them): a whole `strres.xml` replaces another, so every mod made on
+the framework ships the defaults too. Two such mods' `strres.xml` still replace each other; under DefianceLoader's
+table merge each mod can ship only its own rows (to do).
 
 ### The squad
 

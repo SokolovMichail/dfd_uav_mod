@@ -8,6 +8,10 @@
 //   - After the squad dies - killed in battle or with its vehicle's pack-up - the vehicle waits spawn_cooldown
 //     seconds of game time before the next one (cooldownLeft - the binding shows it). Deployed again before the wait
 //     is over, it spawns by itself when it is.
+//   - Untethered vehicles (spawn_tethered false) only launch: deployed with the cooldown over, the vehicle spends a
+//     kit per squad and launches spawn_count squads (as many as it has kits for), the cooldown starts at once, and
+//     the vehicle packs up again by itself - F4 is its launch button. The squads are on their own from then on:
+//     the rules forget them - packing up, the vehicle's destruction or the squads' deaths change nothing.
 //   - Saved games: the rules forget everything when the map changes (reset). A vehicle they see for the first time
 //     takes over what the game saved of it (SpawnPort::saved) - the squad it had out, if that squad is still alive,
 //     and the cooldown left - instead of spawning a second squad.
@@ -63,6 +67,7 @@ struct VehicleState {
     SquadId squad = 0;
     float cooldown = 0;  // seconds of game time left before the next spawn
     bool noKit = false;  // the last try found no kit (reported once until a spawn succeeds)
+    bool packing = false;  // untethered: deployed and launched - the pack-up is ordered on the next tick
 };
 
 class Spawner {
@@ -91,6 +96,7 @@ public:
 
 private:
     void trySpawn(Vehicle* v, VehicleState& s, const SpawnConfig& c);
+    void launch(Vehicle* v, VehicleState& s, const SpawnConfig& c);
 
     SpawnPort& port_;
     std::unordered_map<Vehicle*, VehicleState> vehicles_;

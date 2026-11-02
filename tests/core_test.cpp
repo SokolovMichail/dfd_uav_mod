@@ -70,8 +70,16 @@ public:
 
 Vehicle* handle(int n) { return reinterpret_cast<Vehicle*>(static_cast<uintptr_t>(n) * 16); }
 
-const SpawnConfig kUav{"Res_patchwork_uav", "uav_kit", 60.0f};
-const SpawnConfig kFree{"Lgn_swarm", "", 30.0f};
+SpawnConfig config(const char* squad, const char* ammo, float cooldown) {
+    SpawnConfig c;
+    c.squad = squad;
+    c.ammo = ammo;
+    c.cooldown = cooldown;
+    return c;
+}
+
+const SpawnConfig kUav = config("Res_patchwork_uav", "uav_kit", 60.0f);
+const SpawnConfig kFree = config("Lgn_swarm", "", 30.0f);
 
 // A port with one UAV van (5 kits) at handle(1).
 struct Fixture {
@@ -328,6 +336,115 @@ TEST_CASE("a map change forgets every vehicle and kills nothing") {
     CHECK(f.port.killed.size() == 1);  // the pack-up's only
 }
 
+// ================================================================ untethered vehicles
+
+namespace {
+
+SpawnConfig troops(int count, bool tethered = false) {
+    SpawnConfig c = config("Res_militia", "uav_kit", 40.0f);
+    c.tethered = tethered;
+    c.count = count;
+    return c;
+}
+
+}  // namespace
+
+TEST_CASE("an untethered vehicle launches spawn_count squads, a kit each, and the cooldown starts at once") {
+    Fixture f;
+    SpawnConfig c = troops(3);
+    f.port.vehicles[f.van] = {&c, 5};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.size() == 3);
+    CHECK(f.kits() == 2);
+    CHECK(f.squad() == 0);  // none of them is the vehicle's
+    CHECK(f.spawner.cooldownLeft(f.van) == doctest::Approx(40));
+}
+
+TEST_CASE("an untethered vehicle launches as many squads as it has kits for") {
+    Fixture f;
+    SpawnConfig c = troops(3);
+    f.port.vehicles[f.van] = {&c, 2};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.size() == 2);
+    CHECK(f.spawner.cooldownLeft(f.van) == doctest::Approx(40));
+    f.port.vehicles[f.van].kits = 0;
+    f.spawner.onPacked(f.van);
+    f.spawner.onTick(f.van, 40.0f);
+    f.spawner.onDeployed(f.van);  // no kit: nothing, and no cooldown
+    CHECK(f.port.spawned.size() == 2);
+    CHECK(f.spawner.cooldownLeft(f.van) == 0);
+}
+
+TEST_CASE("an untethered vehicle's squads are on their own: pack-up, loss and destruction change nothing") {
+    Fixture f;
+    SpawnConfig c = troops(2);
+    f.port.vehicles[f.van] = {&c, 5};
+    f.spawner.onDeployed(f.van);
+    f.port.living.clear();  // both lost in battle
+    for (int i = 0; i < 5; ++i) f.spawner.onTick(f.van, 1.0f);
+    CHECK(f.port.packed.size() == 1);  // the launch's own pack-up, nothing for the loss
+    f.spawner.onPacked(f.van);
+    f.spawner.onRemoved(f.van);
+    CHECK(f.port.killed.empty());
+}
+
+TEST_CASE("an untethered vehicle packs up by itself after its launch - on the next tick, not in the deploy") {
+    Fixture f;
+    SpawnConfig c = troops(1);
+    f.port.vehicles[f.van] = {&c, 5};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.packed.empty());  // the deploy runs inside F4 mode's own first tick
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.packed == std::vector<Vehicle*>{f.van});
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.packed.size() == 1);  // ordered once
+    f.spawner.onPacked(f.van);
+    f.spawner.onTick(f.van, 40.0f);
+    f.spawner.onDeployed(f.van);  // deployed again after the cooldown: the next launch
+    CHECK(f.port.spawned.size() == 2);
+}
+
+TEST_CASE("an untethered vehicle packs up even when there was nothing to launch") {
+    Fixture f;
+    SpawnConfig c = troops(1);
+    f.port.vehicles[f.van] = {&c, 0};
+    f.spawner.onDeployed(f.van);
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.spawned.empty());
+    CHECK(f.port.packed.size() == 1);
+}
+
+TEST_CASE("a player's pack-up before the next tick leaves nothing to order") {
+    Fixture f;
+    SpawnConfig c = troops(1);
+    f.port.vehicles[f.van] = {&c, 5};
+    f.spawner.onDeployed(f.van);
+    f.spawner.onPacked(f.van);
+    f.spawner.onTick(f.van, 0.1f);
+    CHECK(f.port.packed.empty());
+}
+
+TEST_CASE("a tethered vehicle keeps one squad, whatever its spawn_count") {
+    Fixture f;
+    SpawnConfig c = troops(4, true);
+    f.port.vehicles[f.van] = {&c, 5};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.port.spawned.size() == 1);
+    CHECK(f.kits() == 4);
+}
+
+TEST_CASE("an untethered vehicle does not take a squad back from a saved game") {
+    Fixture f;
+    SpawnConfig c = troops(1);
+    f.port.vehicles[f.van] = {&c, 5};
+    f.port.living.insert(40304);
+    f.port.saves[f.van] = {40304, 12.0f};
+    f.spawner.onDeployed(f.van);
+    CHECK(f.squad() == 0);
+    CHECK(f.spawner.cooldownLeft(f.van) == doctest::Approx(12));  // its cooldown it does
+    CHECK(f.port.spawned.empty());
+}
+
 // ================================================================ the table columns
 
 namespace {
@@ -365,6 +482,53 @@ TEST_CASE("the framework's columns are read from a vehicle table") {
     CHECK(t["Int_recon_van"].cooldown == doctest::Approx(kDefaultCooldown));
     CHECK(t.count("Res_van") == 0);       // no spawn_squad
     CHECK(t.count("#Res_old_van") == 0);  // a comment row
+    CHECK(t["Res_patchwork_van"].icon.empty());  // no look columns: the defaults
+    CHECK(t["Res_patchwork_van"].tooltip.empty());
+}
+
+TEST_CASE("each vehicle's own F4 pictures and tooltips are read; empty cells leave the defaults") {
+    const char* table = R"(<Workbook><Worksheet><Table>
+   <Row><Cell><Data>sysname</Data></Cell><Cell><Data>spawn_squad</Data></Cell><Cell><Data>spawn_icon</Data></Cell><Cell><Data>spawn_icon_cooldown</Data></Cell><Cell><Data>spawn_icon_recall</Data></Cell><Cell><Data>spawn_tooltip</Data></Cell><Cell><Data>spawn_tooltip_recall</Data></Cell></Row>
+   <Row><Cell><Data>Res_patchwork_van</Data></Cell><Cell><Data>Res_patchwork_uav</Data></Cell><Cell><Data>main\buttons2\pwuav_ready.dds</Data></Cell><Cell><Data>main\buttons2\pwuav_cooldown.dds</Data></Cell><Cell><Data>main\buttons2\pwuav_recall.dds</Data></Cell><Cell><Data>pwuav_deploy</Data></Cell><Cell><Data>pwuav_recall</Data></Cell></Row>
+   <Row><Cell><Data>Mortar_truck</Data></Cell><Cell><Data>Res_mortar_team</Data></Cell><Cell ss:Index="6"><Data>mortar_deploy</Data></Cell></Row>
+  </Table></Worksheet></Workbook>)";
+    SpawnTable t;
+    CHECK(readSpawnColumns(table, t) == 2);
+    const SpawnConfig& uav = t["Res_patchwork_van"];
+    CHECK(uav.icon == "main\\buttons2\\pwuav_ready.dds");
+    CHECK(uav.iconCooldown == "main\\buttons2\\pwuav_cooldown.dds");
+    CHECK(uav.iconRecall == "main\\buttons2\\pwuav_recall.dds");
+    CHECK(uav.tooltip == "pwuav_deploy");
+    CHECK(uav.tooltipRecall == "pwuav_recall");
+    const SpawnConfig& mortar = t["Mortar_truck"];
+    CHECK(mortar.icon.empty());
+    CHECK(mortar.iconRecall.empty());
+    CHECK(mortar.tooltip == "mortar_deploy");
+    CHECK(mortar.tooltipRecall.empty());
+}
+
+TEST_CASE("spawn_tethered and spawn_count: any no is untethered; a bad count is 1; a big one is capped") {
+    const char* table = R"(<Workbook><Worksheet><Table>
+   <Row><Cell><Data>sysname</Data></Cell><Cell><Data>spawn_squad</Data></Cell><Cell><Data>spawn_tethered</Data></Cell><Cell><Data>spawn_count</Data></Cell></Row>
+   <Row><Cell><Data>A</Data></Cell><Cell><Data>s</Data></Cell><Cell><Data>False</Data></Cell><Cell><Data>3</Data></Cell></Row>
+   <Row><Cell><Data>B</Data></Cell><Cell><Data>s</Data></Cell><Cell><Data> no </Data></Cell><Cell><Data>0</Data></Cell></Row>
+   <Row><Cell><Data>C</Data></Cell><Cell><Data>s</Data></Cell><Cell><Data>0</Data></Cell><Cell><Data>500</Data></Cell></Row>
+   <Row><Cell><Data>D</Data></Cell><Cell><Data>s</Data></Cell><Cell><Data>true</Data></Cell><Cell><Data>two</Data></Cell></Row>
+   <Row><Cell><Data>E</Data></Cell><Cell><Data>s</Data></Cell></Row>
+  </Table></Worksheet></Workbook>)";
+    SpawnTable t;
+    CHECK(readSpawnColumns(table, t) == 5);
+    CHECK(!t["A"].tethered);
+    CHECK(t["A"].count == 3);
+    CHECK(t["A"].unitsPerDeploy() == 3);
+    CHECK(!t["B"].tethered);
+    CHECK(t["B"].count == 1);
+    CHECK(!t["C"].tethered);
+    CHECK(t["C"].count == kMaxCount);
+    CHECK(t["D"].tethered);
+    CHECK(t["D"].count == 1);
+    CHECK(t["E"].tethered);  // no cells: tethered, one
+    CHECK(t["E"].unitsPerDeploy() == 1);
 }
 
 TEST_CASE("a table without the framework's columns adds nothing") {

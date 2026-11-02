@@ -626,7 +626,12 @@ bool resolve(const Image& img, Addr& a) {
 
 }  // namespace
 
-bool spawnsSquads(void* entity) { return entity && spawnTable().count(sysnameOf(entity)) != 0; }
+const core::SpawnConfig* spawnConfigOf(void* entity) {
+    if (!entity) return nullptr;
+    const auto& t = spawnTable();
+    auto it = t.find(sysnameOf(entity));
+    return it == t.end() ? nullptr : &it->second;
+}
 
 // ---------------------------------------------------------------- installing
 

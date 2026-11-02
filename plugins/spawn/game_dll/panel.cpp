@@ -11,10 +11,12 @@
 //   * timer over: the buttons as before, the bar hidden -
 //   * except on a vehicle of the framework: there a bar stays, with nothing to wait, so F4 shows the bar's picture
 //     instead of the game's box - "progress_bar" (the squad going out) on the deploy button, "progress_bar_2" (the
-//     squad called back) on the pack-up one - and the buttons' tooltips are the framework's: spawn_deploy and
-//     spawn_recall (strres.xml keys, with _desc and _add) in place of order_unpack and order_pack. Every other
-//     vehicle's F4 stays as the game draws it.
-// The progress bars come with the mod's scripts/ui/AbilityButtons/pack.txt; without them F4 only greys out.
+//     squad called back) on the pack-up one. The pictures and the buttons' tooltips are the vehicle's own - its
+//     row's spawn_icon* and spawn_tooltip* (core/config.h), set on the widgets whenever another vehicle's F4 is
+//     shown - or the framework's defaults; the tooltip keys take the place of order_unpack and order_pack. Every
+//     other vehicle's F4 stays as the game draws it.
+// The progress bars come with the Spawn Framework mod's scripts/ui/AbilityButtons/pack.txt; without them F4 only
+// greys out.
 //
 // A window: +0x120 its ability id, +0x128 its layout (children: a vector at +0x40, a child's name - std::string at
 // +0x18), +0x138 the unit (reference block); a TwiceAbilityWindow's +0x240 - which button it shows (0 unpack, 1
@@ -107,17 +109,86 @@ void showBar(void* bar, float part) {
     g_refresh(bar);
 }
 
-// Switch a button's tooltip key between the game's and the framework's: only a key that is one of the two, kept
-// in the string itself (both are at most 15 characters - no memory of the game's to allocate or free).
-void setTip(void* button, const char* game, const char* ours, bool framework) {
-    if (!button) return;
+// ---- each vehicle's own look: its row's spawn_icon* / spawn_tooltip* (core/config.h), or the framework's defaults
+// (the Spawn Framework mod's files)
+
+constexpr const char* kDefaultIcon = "main\\buttons2\\spawn_framework_ready.dds";
+constexpr const char* kDefaultIconCooldown = "main\\buttons2\\spawn_framework_cooldown.dds";
+constexpr const char* kDefaultIconRecall = "main\\buttons2\\spawn_framework_recall.dds";
+constexpr const char* kDefaultTip = "spawn_deploy";
+constexpr const char* kDefaultTipRecall = "spawn_recall";
+constexpr const char* kGameTip = "order_unpack";  // the game's own, on every other vehicle
+constexpr const char* kGameTipRecall = "order_pack";
+constexpr size_t kMaxTip = 15;  // a key the plugin can write into the game's string in place
+
+std::string orDefault(const std::string& value, const char* fallback) { return value.empty() ? fallback : value; }
+
+// A tooltip key from a vehicle's row: too long to write in place - the default (and a line in the log, once).
+std::string tipOf(const std::string& key, const char* fallback) {
+    if (key.empty()) return fallback;
+    if (key.size() <= kMaxTip) return key;
+    static std::unordered_set<std::string> told;
+    if (told.insert(key).second)
+        g_log("tooltip key '%s' is longer than %zu characters - the default '%s' is shown", key.c_str(), kMaxTip,
+              fallback);
+    return fallback;
+}
+
+// Is `key` one of the framework's tooltip keys: a default or any framework vehicle's?
+bool frameworkTip(const char* key) {
+    if (strcmp(key, kDefaultTip) == 0 || strcmp(key, kDefaultTipRecall) == 0) return true;
+    for (const auto& [name, c] : spawnTable())
+        if (c.tooltip == key || c.tooltipRecall == key) return true;
+    return false;
+}
+
+// Put `want` into a button's tooltip key - only over the game's own key or one of the framework's, and in the
+// string itself (at most 15 characters: no memory of the game's to allocate or free).
+void setTip(void* button, const char* gameKey, const std::string& want) {
+    if (!button || want.size() > kMaxTip) return;
     auto tip = reinterpret_cast<MsvcString*>(static_cast<char*>(button) + kWidgetTip);
-    const char* want = framework ? ours : game;
-    const char* other = framework ? game : ours;
-    if (tip->cap != 15 || tip->size > 15 || strcmp(tip->buf, other) != 0) return;
-    size_t n = strlen(want);
-    memcpy(tip->buf, want, n + 1);
-    tip->size = n;
+    if (tip->cap != 15 || tip->size > 15 || want == tip->buf) return;
+    if (strcmp(tip->buf, gameKey) != 0 && !frameworkTip(tip->buf)) return;
+    memcpy(tip->buf, want.c_str(), want.size() + 1);
+    tip->size = want.size();
+}
+
+// A picture widget's picture: the game's setter (0x2d6210, found in the layout loader) takes the path the widget
+// keeps at +0x60 - "ui/pictures/" + the layout's name without its extension (0x2a9970) - and loads the texture.
+using PictureFn = void (*)(void* widget, const MsvcString* path);
+PictureFn g_setPicture;
+constexpr size_t kWidgetPicture = 0x60;
+constexpr size_t kBarProgressPicture = 0x1a0;  // a progress bar's child picture, the part still to wait (0x2c5590)
+
+void setPicture(void* widget, const std::string& name) {
+    if (!widget || !g_setPicture) return;
+    std::string path = "ui/pictures/" + name.substr(0, name.rfind('.'));
+    auto now = reinterpret_cast<const MsvcString*>(static_cast<char*>(widget) + kWidgetPicture);
+    if (now->size == path.size() && memcmp(now->c_str(), path.data(), path.size()) == 0) return;
+    MsvcString s{};
+    s.size = path.size();
+    if (path.size() <= 15) {
+        memcpy(s.buf, path.c_str(), path.size() + 1);
+        s.cap = 15;
+    } else {
+        s.ptr = path.c_str();
+        s.cap = path.size();
+    }
+    g_setPicture(widget, &s);
+}
+
+// The vehicle's pictures on F4's two bars: the deploy one - its icon, filled with its cooldown picture; the
+// pack-up one - its recall picture.
+void setPictures(void* bar, void* bar2, const core::SpawnConfig& c) {
+    if (bar) {
+        setPicture(bar, orDefault(c.icon, kDefaultIcon));
+        setPicture(field(bar, kBarProgressPicture), orDefault(c.iconCooldown, kDefaultIconCooldown));
+    }
+    if (bar2) {
+        std::string recall = orDefault(c.iconRecall, kDefaultIconRecall);
+        setPicture(bar2, recall);
+        setPicture(field(bar2, kBarProgressPicture), recall);
+    }
 }
 
 // TwiceAbilityWindow slot 7 - every frame: after the game has set the buttons, F4 shows the cooldown - and on a
@@ -128,11 +199,12 @@ void hookUpdate(void* window) {
         float left = 0, length = 0;
         void* unit = nullptr;
         if (!packTimer(window, left, length, &unit)) return;
-        bool framework = spawnsSquads(unit);
-        setTip(field(window, kWinButton), "order_unpack", "spawn_deploy", framework);
-        setTip(field(window, kWinButton2), "order_pack", "spawn_recall", framework);
+        const core::SpawnConfig* c = spawnConfigOf(unit);
+        setTip(field(window, kWinButton), kGameTip, c ? tipOf(c->tooltip, kDefaultTip) : kGameTip);
+        setTip(field(window, kWinButton2), kGameTipRecall, c ? tipOf(c->tooltipRecall, kDefaultTipRecall) : kGameTipRecall);
         void* bar = child(window, "progress_bar");
         void* bar2 = child(window, "progress_bar_2");
+        if (c) setPictures(bar, bar2, *c);
         if (left > 0 && length > 0) {
             greyButtons(window, true);
             g_greyed.insert(window);
@@ -143,13 +215,13 @@ void hookUpdate(void* window) {
         if (g_greyed.erase(window)) greyButtons(window, false);
         bool deployButton = *reinterpret_cast<int*>(static_cast<char*>(window) + kWinShowing) == 0;
         if (bar) {
-            if (framework && deployButton)
+            if (c && deployButton)
                 showBar(bar, 0);
             else
                 show(bar, false);
         }
         if (bar2) {
-            if (framework && !deployButton)
+            if (c && !deployButton)
                 showBar(bar2, 0);
             else
                 show(bar2, false);
@@ -184,6 +256,11 @@ constexpr const char* kTimerUpdate =
 constexpr size_t kGreyCall = 0x86, kRefreshCall = 0xe5;
 constexpr const char* kPrologueGrey = "40 53 48 83 EC 20 48 8B D9 88 91 84 02 00 00";
 constexpr const char* kPrologueRefresh = "48 89 5C 24 18 48 89 74 24 20 55 57 41 56 48 8D";
+// The layout loader's "image" (0x2a9ef0): "the path of the layout's name (0x2a9970), set it on the widget" - the
+// setter's call at +20.
+constexpr const char* kSigPictureCall = "48 8D 55 EF 48 8D 4D 97 E8 ?? ?? ?? ?? 90 48 8B D0 48 8B CF E8 ?? ?? ?? ?? 90";
+constexpr size_t kPictureCall = 20;
+constexpr const char* kProloguePicture = "48 89 5C 24 10 48 89 74 24 18 48 89 7C 24 20 55 41 54 41 55 41 56 41 57";
 
 }  // namespace
 
@@ -203,6 +280,14 @@ bool installPanel(const Image& img, Patcher& p) {
     g_log("panel: TwiceAbilityWindow %08X TimerAbilityWindow %08X, grey %08X refresh %08X", twice ? img.rva(twice) : 0,
           timer ? img.rva(timer) : 0, g_grey ? img.rva(reinterpret_cast<uintptr_t>(g_grey)) : 0,
           g_refresh ? img.rva(reinterpret_cast<uintptr_t>(g_refresh)) : 0);
+    auto pictures = img.find(kSigPictureCall);
+    if (pictures.size() == 1) {
+        g_setPicture = reinterpret_cast<PictureFn>(Image::ripTarget(pictures[0] + kPictureCall, 1, 5));
+        if (!Image::matches(reinterpret_cast<uintptr_t>(g_setPicture), kProloguePicture)) g_setPicture = nullptr;
+    }
+    g_log("panel: picture setter %08X (%zu calls)%s",
+          g_setPicture ? img.rva(reinterpret_cast<uintptr_t>(g_setPicture)) : 0, pictures.size(),
+          g_setPicture ? "" : " - not found: F4 shows the layout's pictures on every framework vehicle");
     if (!twice || !g_grey || !g_refresh) {
         g_log("this game.dll build is not supported - F4 does not show the cooldown (spawning works)");
         return false;
