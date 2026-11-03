@@ -29,24 +29,30 @@ void Spawner::onDeployed(Vehicle* v) {
     if (!s.squad && s.cooldown <= 0) trySpawn(v, s, *s.config);
 }
 
-void Spawner::onPacked(Vehicle* v) {
+// F4 mode is over: the squad is recalled (mayRecall - a pack-up, the whole squad in reach) or dies.
+void Spawner::end(Vehicle* v, bool mayRecall) {
     auto it = vehicles_.find(v);
     if (it == vehicles_.end()) return;
     VehicleState& s = it->second;
     s.deployed = false;
     if (!s.squad) return;
-    if (port_.alive(v, s.squad)) {
+    if (!port_.alive(v, s.squad)) {
+        port_.event("packed up: squad already gone", v, s.squad);
+    } else if (mayRecall && port_.inReach(v, s.squad)) {
+        port_.recall(v, s.squad);
+        port_.event("packed up: squad recalled", v, s.squad);
+        if (!s.config->ammo.empty())
+            port_.event(port_.returnKit(v, s.config->ammo) ? "kit returned" : "kit lost: no room for it", v, 0);
+    } else {
         port_.kill(v, s.squad);
         port_.event("packed up: squad killed", v, s.squad);
-    } else {
-        port_.event("packed up: squad already gone", v, s.squad);
     }
     s.squad = 0;
     s.cooldown = s.config->cooldown;
 }
 
 void Spawner::onRemoved(Vehicle* v) {
-    onPacked(v);
+    end(v, false);
     if (vehicles_.erase(v)) port_.event("vehicle gone", v, 0);
 }
 

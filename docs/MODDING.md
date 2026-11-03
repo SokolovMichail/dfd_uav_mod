@@ -4,8 +4,11 @@ The Spawn Framework lets a vehicle of Terminator: Dark Fate - Defiance send out 
 (F4). Any vehicle can use it; your mod only describes the vehicle in the game's tables. No code is needed.
 
 - **Tethered vehicle** (the default). Deployed, it keeps one squad of its own next to it - a drone, or any squad.
-  The squad dies when the vehicle packs up, is destroyed or leaves F4 mode for any other reason; a squad lost in
-  battle packs the vehicle up by itself. After the squad dies, the vehicle waits a cooldown before the next one.
+  Packed up with the whole squad inside its supply circle, the vehicle recalls it: the squad is taken away without
+  a death, and its kit goes back into the vehicle if there is room for it (no room - the kit is lost). Otherwise the
+  squad dies when the vehicle packs up, is destroyed or leaves F4 mode for any other reason; a squad lost in battle
+  packs the vehicle up by itself. After the squad is recalled or dies, the vehicle waits a cooldown before the next
+  one.
 - **Untethered vehicle.** Deployed, it launches a set number of squads, and packs up again by itself: F4 is its
   launch button. The squads are on their own from then on; the cooldown starts at the launch.
 - **Kits.** Each squad costs one round of the vehicle's own ammunition - the "kit". No kit left, no squad.
@@ -41,7 +44,7 @@ The framework's columns:
 |---|---|---|
 | `spawn_squad` | a `squads.xml` sysname | the squad the vehicle keeps; required - a row without it is not the framework's |
 | `spawn_ammo` | an `ammunition.xml` sysname | the kit: one round is spent per squad; empty - squads cost nothing |
-| `spawn_cooldown` | seconds | game time after the squad dies before the next one; default 60 |
+| `spawn_cooldown` | seconds | game time after the squad dies or is recalled before the next one; default 60 |
 | `spawn_tethered` | `true`, or empty | the default |
 
 And in the game's columns:
@@ -57,8 +60,8 @@ And in the game's columns:
 supply. The framework hangs the deploy on the ammunition component. So every framework vehicle needs
 `ammunition_recharge`, even though it hands out no ammunition: give it `capacity_ammo_recharger=0`, and F4 still
 works. Nothing else may be next to it: `refuel`, `support` and `repair` take it away. Deployed, the vehicle shows the
-ammunition supply circle that comes with it; the framework does not change it yet (an own circle would clash with
-HEMTT Spares', which changes the same circle code).
+ammunition supply circle that comes with it (its radius is the game's `supplyRadius`, 20 m): that circle is the
+recall zone - a squad wholly inside it when the vehicle packs up is recalled instead of killed.
 
 Without the framework such a vehicle is an ordinary one with a launcher that never fires and the F4 button of a
 supply vehicle with nothing to hand out.
@@ -97,7 +100,11 @@ vehicle's own mounts with `gun = uav_kit_launcher`).
 
 Any squad works. The squad is of its vehicle's team and appears 8 m from it.
 
-How a tethered squad dies when its vehicle packs up is the engine's own self-detonation of bomb drones: every
+A tethered squad wholly inside its vehicle's supply circle at the pack-up is recalled: the engine deletes its
+soldiers, as the missions' `deleteUnits` action does - no death, no blast, no body. A recall needs every soldier
+in the circle; a squad inside a building or a vehicle is never recalled.
+
+How a tethered squad dies when its vehicle packs up otherwise is the engine's own self-detonation of bomb drones: every
 soldier takes a lethal hit and dies as if hit - so its `humans.xml` row decides what that looks like
 (`explode_damage`, `explode_splash_radius`, `destroy_effect`; the bomb drones' is `ap240 6-8:he200 6-12:fr160` over
 8 m with `destruction_swarm_explosive`). The perk `noCorpse` in `squads.xml` leaves no body. Mind the blast: it
@@ -162,7 +169,8 @@ with the vehicle's own pictures and tooltips:
   then the first events, with the vehicle's address:
   - `deployed` — a framework vehicle went into F4;
   - `squad spawned`, `squad launched (untethered)` — what came out;
-  - `packed up: squad killed`, `squad lost: packing up` — how a tethered squad ended;
+  - `packed up: squad recalled` (then `kit returned` or `kit lost: no room for it`), `packed up: squad killed`,
+    `squad lost: packing up` — how a tethered squad ended;
   - `squad taken back from the saved game` — after a load.
 - **Single player only.** Not tested in multiplayer.
 - **Saved games.** The framework keeps a vehicle's state in its F4 button, which the game saves: the timer holds the

@@ -1,10 +1,10 @@
 # Description
 UAV carriers for Terminator: Dark Fate - Defiance: deploy the vehicle and it keeps a recon drone of its own in the air.
 
-Deploy a carrier with F4, and it launches a drone that you control like any other unit. The drone belongs to its carrier: pack the carrier up, or lose it, and the drone self-destructs; lose the drone, and the carrier packs up by itself. The game engine has no such mechanics, so a small native plugin adds them. The page offers them in two parts:
+Deploy a carrier with F4, and it launches a drone that you control like any other unit. The drone belongs to its carrier: pack the carrier up with the drone back inside its circle, and the drone is recalled and its kit returned; pack it up with the drone away, or lose the carrier, and the drone self-destructs; lose the drone, and the carrier packs up by itself. The game engine has no such mechanics, so a small native plugin adds them. The page offers them in two parts:
 
 **Spawn Framework** - the mechanics themselves, for any vehicle a mod gives them to:
-* Tethered units: a deployed vehicle keeps one unit of its own (a drone, or any squad) next to it. The unit dies with the vehicle's pack-up or destruction; losing it packs the vehicle up.
+* Tethered units: a deployed vehicle keeps one unit of its own (a drone, or any squad) next to it. Packed up with the unit inside its supply circle, the vehicle recalls it and gets its kit back (if it has room for it); otherwise the unit dies with the vehicle's pack-up or destruction. Losing the unit packs the vehicle up.
 * Untethered launches: a vehicle that only sends units out - a set number per deploy, each on its own from then on - and packs up again by itself.
 * Kits and cooldowns: each unit costs one round of the vehicle's own ammunition (the "kit"), and the next one waits a cooldown. F4 shows the wait: greyed out and filling up, it cannot be pressed until the wait is over.
 * Each vehicle brings its own F4 pictures and tooltips. Other vehicles' F4 stays as the game draws it.
@@ -14,7 +14,7 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
 **UAV Carriers** - the example mod, two carriers built on the framework:
 * UAV Carrier - the Integrators' gun truck refitted to carry a recon drone, a little slower than the Legion's swarm scouts.
 * Patchwork UAV Carrier - a Resistance van with a drone put together from Legion scrap: slow, rusty, its eye glowing green.
-* Each carries 5 UAV kits (200 supply to restock each, like any ammunition) and spends one per drone. One drone per carrier at a time; the next one is ready 60 s after the last one dies. The carriers take no passengers.
+* Each carries 5 UAV kits (200 supply to restock each, like any ammunition) and spends one per drone. One drone per carrier at a time; the next one is ready 60 s after the last one dies or is recalled. The carriers take no passengers.
 * Where to get them:
   * Resistance campaign: both in the first sector shop.
   * Main campaign and Evolution campaign: both in every shop.
@@ -144,12 +144,13 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
 # NOTES
 * Single player only. Do not use it in multiplayer. The DefianceLoader build blocks going online while the plugin is enabled.
 * Game updates may change the game files the mod relies on; then the mod needs an update too.
-* A drone's self-destruction is a small blast: it also hits whatever stands right next to the drone when its carrier packs up.
+* A drone's self-destruction is a small blast: it also hits whatever stands right next to the drone when its carrier packs up with the drone outside its circle.
+* A recalled drone's kit is lost if the carrier was restocked to full meanwhile.
 
 # KNOWN ISSUES
 * Both carriers use the models of the vehicles they are built on (the Integrators' gun truck and the Resistance van).
 * A drone inside a building or a vehicle when its carrier packs up dies a few seconds later, with its blast inside.
-* A deployed carrier shows the game's ammunition supply circle, though it hands out nothing and its drone has no range limit.
+* A deployed carrier shows the game's ammunition supply circle, though it hands out nothing: it is only the recall zone, and the drone has no range limit.
 * 
 # KNOWN MOD CONFLICTS
   HEMTT Spares (both replace scripts/species/cars.xml and other tables: enable only one of them).

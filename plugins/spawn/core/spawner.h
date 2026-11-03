@@ -3,7 +3,11 @@
 //   - Deployed, with no squad alive and its cooldown over, the vehicle spends one kit (spawn_ammo) and spawns its
 //     squad (spawn_squad); no kit left - nothing. A vehicle without spawn_ammo spawns without spending anything.
 //   - One squad alive per vehicle at a time.
-//   - The squad dies when the vehicle leaves F4 mode for whatever reason (packing up, destroyed, another order).
+//   - The squad dies when the vehicle leaves F4 mode for whatever reason (packing up, destroyed, another order) -
+//     unless it is recalled: packed up with the whole squad inside the vehicle's supply circle (SpawnPort::inReach),
+//     the squad is taken away without a death, and its kit goes back into the vehicle - if the vehicle has room
+//     for it (it may have been restocked meanwhile); no room - the kit is lost. The cooldown runs as after a loss.
+//     A vehicle destroyed, or packed up because its squad was lost, recalls nothing.
 //   - A squad lost in battle packs its vehicle up: the vehicle leaves F4 mode by itself.
 //   - After the squad dies - killed in battle or with its vehicle's pack-up - the vehicle waits spawn_cooldown
 //     seconds of game time before the next one (cooldownLeft - the binding shows it). Deployed again before the wait
@@ -52,6 +56,12 @@ public:
     virtual bool alive(Vehicle* v, SquadId s) = 0;
     // Kill the squad (its soldiers die as if hit).
     virtual void kill(Vehicle* v, SquadId s) = 0;
+    // Is every soldier of the squad inside the vehicle's recall circle (its supply circle)?
+    virtual bool inReach(Vehicle* v, SquadId s) = 0;
+    // Take the squad away without a death (a recall).
+    virtual void recall(Vehicle* v, SquadId s) = 0;
+    // Give one round of `ammo` back to the vehicle. false - no room for it (or the vehicle does not carry it).
+    virtual bool returnKit(Vehicle* v, const std::string& ammo) = 0;
     // Order the vehicle out of F4 mode, as the player's F4 does. The game ends F4 mode later (onPacked follows).
     virtual void pack(Vehicle* v) = 0;
     // Report a notable event (the binding decides how to log it).
@@ -76,8 +86,9 @@ public:
 
     // The vehicle has gone into F4 mode. Not a spawning vehicle - ignored.
     void onDeployed(Vehicle* v);
-    // The vehicle has left F4 mode (packed up, another order): its squad dies, the cooldown starts.
-    void onPacked(Vehicle* v);
+    // The vehicle has left F4 mode (packed up, another order): its squad is recalled if in reach, or dies; the
+    // cooldown starts.
+    void onPacked(Vehicle* v) { end(v, true); }
     // The vehicle is gone from the game (destroyed): its squad dies and the vehicle is forgotten - the binding may
     // reuse the handle for another vehicle.
     void onRemoved(Vehicle* v);
@@ -95,6 +106,7 @@ public:
     const VehicleState* state(Vehicle* v) const;
 
 private:
+    void end(Vehicle* v, bool mayRecall);
     void trySpawn(Vehicle* v, VehicleState& s, const SpawnConfig& c);
     void launch(Vehicle* v, VehicleState& s, const SpawnConfig& c);
 

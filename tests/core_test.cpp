@@ -10,6 +10,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
 #include <string>
@@ -26,6 +27,7 @@ namespace {
 struct TestVehicle {
     const SpawnConfig* config = nullptr;
     int kits = 0;  // rounds of the kit ammo; -1 - does not carry it
+    int capacity = 5;  // the most kits it holds
 };
 
 class TestPort final : public SpawnPort {
@@ -58,6 +60,19 @@ public:
     void kill(Vehicle*, SquadId s) override {
         living.erase(s);
         killed.push_back(s);
+    }
+    std::set<SquadId> inCircle;  // squads inside their vehicle's recall circle
+    std::vector<SquadId> recalled;
+    bool inReach(Vehicle*, SquadId s) override { return inCircle.count(s) != 0; }
+    void recall(Vehicle*, SquadId s) override {
+        living.erase(s);
+        recalled.push_back(s);
+    }
+    bool returnKit(Vehicle* v, const std::string&) override {
+        TestVehicle& t = vehicles[v];
+        if (t.kits >= t.capacity) return false;
+        ++t.kits;
+        return true;
     }
     void pack(Vehicle* v) override { packed.push_back(v); }
     void event(const char* what, Vehicle*, SquadId) override { events.push_back(what); }
@@ -280,6 +295,65 @@ TEST_CASE("each vehicle has its own squad and cooldown") {
     f.spawner.onPacked(f.van);
     CHECK(f.port.killed.size() == 1);
     CHECK(f.spawner.state(second)->squad != 0);
+}
+
+// ================================================================ recall
+
+TEST_CASE("packed up with its squad in reach, the vehicle recalls it: no death, the kit back, the cooldown runs") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    SquadId s = f.squad();
+    CHECK(f.kits() == 4);
+    f.port.inCircle.insert(s);
+    f.spawner.onPacked(f.van);
+    CHECK(f.port.recalled == std::vector<SquadId>{s});
+    CHECK(f.port.killed.empty());
+    CHECK(f.kits() == 5);
+    CHECK(f.squad() == 0);
+    CHECK(f.spawner.cooldownLeft(f.van) == doctest::Approx(60));
+}
+
+TEST_CASE("a squad out of reach at the pack-up dies as before, and its kit is gone") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    SquadId s = f.squad();
+    f.spawner.onPacked(f.van);
+    CHECK(f.port.killed == std::vector<SquadId>{s});
+    CHECK(f.port.recalled.empty());
+    CHECK(f.kits() == 4);
+}
+
+TEST_CASE("a recall into a vehicle restocked meanwhile loses the kit, the squad still recalled") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    SquadId s = f.squad();
+    f.port.vehicles[f.van].kits = 5;  // a supply truck filled it up
+    f.port.inCircle.insert(s);
+    f.spawner.onPacked(f.van);
+    CHECK(f.port.recalled == std::vector<SquadId>{s});
+    CHECK(f.kits() == 5);
+    CHECK(std::count(f.port.events.begin(), f.port.events.end(), std::string("kit lost: no room for it")) == 1);
+}
+
+TEST_CASE("a destroyed vehicle recalls nothing, even with its squad in reach") {
+    Fixture f;
+    f.spawner.onDeployed(f.van);
+    SquadId s = f.squad();
+    f.port.inCircle.insert(s);
+    f.spawner.onRemoved(f.van);
+    CHECK(f.port.killed == std::vector<SquadId>{s});
+    CHECK(f.port.recalled.empty());
+}
+
+TEST_CASE("a vehicle without kits recalls its squad and gives nothing back") {
+    Fixture f;
+    f.port.vehicles[f.van] = {&kFree, 0};
+    f.spawner.onDeployed(f.van);
+    SquadId s = f.squad();
+    f.port.inCircle.insert(s);
+    f.spawner.onPacked(f.van);
+    CHECK(f.port.recalled == std::vector<SquadId>{s});
+    CHECK(f.kits() == 0);
 }
 
 // ================================================================ saved games

@@ -9,7 +9,8 @@ next to it - the **Spawn Framework** (a plugin and a small game mod, shared by e
   scouts: slow, rusty, its eye glowing green.
 
 Each carrier carries 5 UAV kits (200 to restock each) and spends one per drone, and no passengers. One drone per
-carrier at a time; it dies when the carrier packs up or is destroyed, and the next one waits 60 s. They are in every
+carrier at a time; packed up with the drone inside its circle, the carrier recalls it and gets the kit back,
+otherwise the drone dies with the pack-up or the carrier; the next one waits 60 s. They are in every
 shop of the main campaign and the Canada DLC, the first zone of the Resistance DLC's uprising, and the Resistance and
 Founders skirmish armies.
 

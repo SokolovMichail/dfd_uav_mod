@@ -124,6 +124,11 @@ DetonateFn g_detonate;
 PackFn g_pack;
 KillerFn g_killer;  // optional: without them a squad inside a building or a vehicle outlives its vehicle
 KillFn g_kill;
+// Delete an entity: it leaves the game without a death (0x533320 - the mission action deleteUnits' per-unit step:
+// the world's kill manager queues it for deletion, 0x292f30, the kill queue's twin). Optional: without it nothing is
+// recalled - a squad dies at every pack-up.
+using DeleteFn = void (*)(void* entity);
+DeleteFn g_delete;
 
 // A component's owner (a vehicle): [component+0x10] is a reference block, its object the owner.
 void* ownerOf(void* component) { return component ? objectOf(field(component, 0x10)) : nullptr; }
@@ -214,7 +219,12 @@ struct Known {
     std::string name;
     bool showing = false;  // the cooldown button is on (taken off once when the wait is over)
     SquadId linked = 0;    // the squad F4's length holds (see "Saved games")
+    float reach = 0;       // the radius of its supply circle - the recall's (taken at every deploy); 0 - unknown
 };
+
+// A deployed vehicle's supply component (an AmmoRechargerFacet, [AiDoRechargeState+0x20]) keeps the radius of its
+// circle at +0x5c - the game's supplyRadius (20 m).
+constexpr size_t kSupplyRadius = 0x5c;
 
 // The vehicle's abilities - the buttons of its command panel. Each has an "enabled" byte, which is also whether its
 // button is there, and a cooldown: a timer the game counts down every frame and its full length. They live in a
@@ -341,6 +351,46 @@ public:
         if (g_killer && g_kill) g_dying.push_back({knownWorld(v), s, GetTickCount64() + kDetonateCheckMs});
     }
 
+    // Every soldier of the squad within the vehicle's supply circle (3D distance from the vehicle).
+    bool inReach(core::Vehicle* v, SquadId s) override {
+        auto known = g_known.find(v);
+        const float* at = positionOf(entity(v));
+        if (!g_delete || known == g_known.end() || known->second.reach <= 0 || !at) return false;
+        RefBlock* rb = entityById(known->second.world, s);
+        if (!rb) return false;
+        std::vector<void*> soldiers = soldierList(rb->object);
+        bool in = !soldiers.empty();
+        float r2 = known->second.reach * known->second.reach;
+        for (void* u : soldiers) {
+            const float* p = positionOf(u);
+            if (!p) {
+                in = false;
+                break;
+            }
+            float dx = p[0] - at[0], dy = p[1] - at[1], dz = p[2] - at[2];
+            if (dx * dx + dy * dy + dz * dz > r2) in = false;
+        }
+        release(rb);
+        return in;
+    }
+
+    // Every soldier, then the squad, deleted - no death, no blast, no body.
+    void recall(core::Vehicle* v, SquadId s) override {
+        RefBlock* rb = entityById(knownWorld(v), s);
+        if (!rb) return;
+        for (void* u : soldierList(rb->object)) g_delete(u);
+        g_delete(rb->object);
+        release(rb);
+    }
+
+    // One round back into the kit's depot entry, if it is below its capacity (the reverse of spendKit's round).
+    bool returnKit(core::Vehicle* v, const std::string& ammo) override {
+        DepotEntry* k = depotEntry(depotOf(entity(v)), ammo);
+        if (!k || k->rounds >= k->capacity) return false;
+        ++k->rounds;
+        return true;
+    }
+
     // The vehicle is alive here: this runs from its own AiFacet update.
     void pack(core::Vehicle* v) override { g_pack(entity(v)); }
 
@@ -431,6 +481,11 @@ void deployed(void* state) {
             void* ai = aiOf(e);
             g_log("'%s' %p: a spawning vehicle (AI facet vtable RVA %08X)", name.c_str(), e,
                   ai ? static_cast<unsigned>(*static_cast<uintptr_t*>(ai) - g_logicBase) : 0u);
+        }
+        if (v) {
+            void* supply = objectOf(field(state, 0x20));
+            float r = supply ? *reinterpret_cast<float*>(static_cast<char*>(supply) + kSupplyRadius) : 0;
+            g_known[v].reach = r > 0 && r < 1000 ? r : 0;  // anything else is not a radius: no recall
         }
     }
     g_states[state] = v;
@@ -562,6 +617,13 @@ constexpr const char* kSigKillCall = "FF 50 78 48 8B C8 E8 ?? ?? ?? ?? 48 8B D6 
 constexpr size_t kKillerCall = 6, kKillCall = 17;
 constexpr const char* kPrologueKiller = "40 53 48 83 EC 20 65 48 8B 04 25 58 00 00 00 48 8B D9";
 constexpr const char* kPrologueKill = "48 89 5C 24 18 55 56 57 41 56 41 57 48 83 EC 40 0F 29 74 24 30 4C 8B F2";
+// The mission action deleteUnits' per-unit step (0x498590): "the unit, delete it (call at +36), then tell the
+// mission" - its head, up to the call.
+constexpr const char* kSigDeleteStep =
+    "40 56 48 83 EC 20 48 8B F1 48 89 7C 24 38 48 8B 0A 48 8B FA 48 85 C9 74 09 48 8B 49 10 48 85 C9 75 02 33 C9 "
+    "E8 ?? ?? ?? ??";
+constexpr size_t kDeleteCall = 36;
+constexpr const char* kPrologueDelete = "48 85 C9 0F 84 ?? ?? ?? ?? 48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 40";
 // AiFacet slots 33 / 34 (set an ability's cooldown timer / length): both look the ability up in the table at
 // [AiFacet+0x108] - "mov r10, [rcx+0x108]; mov r9, FNV prime".
 constexpr const char* kPrologueAbilitySetter = "4C 8B 91 08 01 00 00 49 B9 B3 01 00 00 00 01 00 00";
@@ -613,6 +675,13 @@ bool resolve(const Image& img, Addr& a) {
     }
     g_log("kill queue: manager %08X queue %08X (%zu calls)%s", rvaOf(img, (void*)g_killer), rvaOf(img, (void*)g_kill),
           kills.size(), g_kill ? "" : " - not found: a squad inside a building or a vehicle outlives its vehicle");
+    auto del = img.find(kSigDeleteStep);
+    if (del.size() == 1) {
+        g_delete = reinterpret_cast<DeleteFn>(Image::ripTarget(del[0] + kDeleteCall, 1, 5));
+        if (!Image::matches(reinterpret_cast<uintptr_t>(g_delete), kPrologueDelete)) g_delete = nullptr;
+    }
+    g_log("delete: %08X (%zu calls)%s", rvaOf(img, (void*)g_delete), del.size(),
+          g_delete ? "" : " - not found: no recall, a squad dies at every pack-up");
     auto slotOf = [&](size_t off) { return *reinterpret_cast<uintptr_t*>(a.aiVt + off); };
     bool setters = Image::matches(slotOf(kSetAbilityTimer), kPrologueAbilitySetter) &&
                    Image::matches(slotOf(kSetAbilityLength), kPrologueAbilitySetter);
