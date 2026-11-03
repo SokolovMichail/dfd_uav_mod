@@ -12,8 +12,8 @@ The pictures:
   ready     the button with the icon in the middle, coloured the way the game's timer buttons colour theirs (their
             _cooldown_n): F4's deploy button, and what the cooldown fills over;
   cooldown  a dim grey copy of it (the game's _cooldown_o): the part of the wait still to go;
-  recall    the button with the icon higher up and an arrow down under it: F4's pack-up button (the squad called
-            back).
+  recall    F4's pack-up button: the icon struck out with a red slash (the squad dies with the pack-up). recall_arrow - the
+            icon higher up with an arrow down under it - is the picture for a squad called back instead.
 The game's own files are only read. The pictures are uncompressed 32-bit DDS (R in the low byte); the outputs keep
 the button's 128-byte header.
 
@@ -35,6 +35,8 @@ RECALL_ICON = 36    # and on the pack-up button, with the arrow under it
 ARROW = (26, 20)
 FILL = (176, 208, 220, 255)  # the arrow: the light blue and dark outline of the game's icons
 DARK = (26, 42, 51, 255)
+CROSS_RED = (214, 52, 40, 255)  # the slash over the pack-up button's icon, outlined DARK
+CROSS_WIDTH = 6
 READY_FIT = ((0.988, 2.5), (1.043, -9.3), (1.103, -23.2))
 GREY, GREY_ALPHA = (0.262, 33.9), 230
 
@@ -91,8 +93,27 @@ def with_icon(button, icon):
     return out
 
 
+def strike(width, height):
+    """A red slash from the top left to the bottom right, with a dark outline: struck out. One stroke, not an X: an
+    X hides an icon that runs along one of its diagonals (the framework's rifle)."""
+    img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    m = CROSS_WIDTH // 2 + 2
+    for colour, w in ((DARK, CROSS_WIDTH + 4), (CROSS_RED, CROSS_WIDTH)):
+        d.line([(m, m), (width - 1 - m, height - 1 - m)], fill=colour, width=w)
+    return img
+
+
 def recall(button, icon):
-    """The pack-up button: the icon higher up, an arrow down under it."""
+    """The pack-up button: the icon in the middle, struck out - its squad dies with the pack-up."""
+    out = with_icon(button, icon)
+    x = strike(ICON + 6, ICON + 6)
+    out.alpha_composite(x, ((out.width - x.width) // 2, (out.height - x.height) // 2))
+    return out
+
+
+def recall_arrow(button, icon):
+    """A pack-up button for a squad called back: the icon higher up, an arrow down under it."""
     out = blank(button)
     icon, down = fit(icon, RECALL_ICON), arrow(*ARROW)
     top = (out.height - icon.height - down.height + 2) // 2

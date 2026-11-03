@@ -113,7 +113,7 @@ with the vehicle's own pictures and tooltips:
 |---|---|---|
 | `spawn_icon` | the deploy button, ready - and what the cooldown fills over | the generic rifle squad's icon |
 | `spawn_icon_cooldown` | what the cooldown fills it with: the part of the wait still to go | a dim grey copy of it |
-| `spawn_icon_recall` | the pack-up button | it with an arrow down |
+| `spawn_icon_recall` | the pack-up button | it struck out with a red slash |
 | `spawn_tooltip` | the deploy button's tooltip: a `locale/strres.xml` key | `spawn_deploy` |
 | `spawn_tooltip_recall` | the pack-up button's | `spawn_recall` |
 
