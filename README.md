@@ -4,11 +4,11 @@ A mod for Terminator: Dark Fate - Defiance (GOG 1.09.1221). A vehicle deployed i
 next to it - the **Spawn Framework** (a plugin and a small game mod, shared by every mod made on it), and
 **UAV Carriers**, a mod made on it: two carriers that keep a recon drone in the air while deployed.
 
-- Integrators' **UAV Carrier** (on their gun truck) - a clean drone, a little slower than the Legion's swarm scouts.
+- Integrators' **Recon UAV Carrier** (on their gun truck) - a clean drone, a little slower than the Legion's swarm scouts.
 - Resistance's **Patchwork UAV Carrier** (on their van) - one working drone put together from ten wrecked Legion
   scouts: slow, rusty, its eye glowing green.
 
-Each carrier carries 5 UAV kits (200 to restock each) and spends one per drone, and no passengers. One drone per
+Each carrier carries 5 UAV kits (500 to restock each) and spends one per drone, and no passengers. One drone per
 carrier at a time; it dies when the carrier packs up or is destroyed, and the next one waits 60 s. They are in every
 shop of the main campaign and the Canada DLC, the first zone of the Resistance DLC's uprising, and the Resistance and
 Founders skirmish armies.
