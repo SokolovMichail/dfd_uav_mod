@@ -7,7 +7,7 @@ Two UAV carriers that, deployed (F4), keep one recon drone of their own in the a
 ammunition of its own, 500 to restock each) and spends one per drone; the drone dies when its carrier packs up or is
 destroyed, and the next one waits 60 s after it. They carry no passengers.
 
-- Integrators: Int_uav_carrier ("UAV Carrier"), on the Integrators' gun truck (Int_guntruck): the smoke launcher is
+- Integrators: Int_uav_carrier ("Recon UAV Carrier"), on the Integrators' gun truck (Int_guntruck): the smoke launcher is
   a UAV kit launcher. Its drone, Int_recon_uav, is a swarm scout a little slower than the Legion's.
 - Resistance / Founders: Res_patchwork_uav_carrier ("Patchwork UAV Carrier"), on the Resistance van (Res_van): its
   passenger mounts give way to the kit launcher. Its drone, Res_patchwork_uav, is put together from scrap: slow and
@@ -55,7 +55,7 @@ KIT_COST = 500
 # description in the ammunition panel (locale/ammunition.xml).
 KIT_PICTURE = 'uavc_kit'
 # The Patchwork UAV Carrier's drone is rusty (art/rusty_drone.py): its own model, material and textures, made from
-# the swarm drone's; the UAV Carrier's drone and the Legion's keep the clean ones.
+# the swarm drone's; the Recon UAV Carrier's drone and the Legion's keep the clean ones.
 RUSTY_DRONE = 'uavc_drone'
 SWARM = dict(model='animations/new/skin/lgn_swarm.model', material='materials/vehicles/lgn_swarm.material',
              albedo='textures/vehicle/swarm_albedo.dds', rough='textures/vehicle/swarm_rough.dds',
@@ -73,7 +73,7 @@ F4 = ['abilities=ammunition_recharge', 'capacity_ammo_recharger=0', 'people_capa
 DRONE = ['explode_damage=1-2:he30', 'explode_splash_radius=2', 'destroy_effect=destruction_swarm_explosive']
 
 UNITS = [
-    dict(van='Int_uav_carrier', van_from='Int_guntruck', van_name='UAV Carrier', faction='integrators',
+    dict(van='Int_uav_carrier', van_from='Int_guntruck', van_name='Recon UAV Carrier', faction='integrators',
          van_stats=F4 + ['gun_mounts=stryker_machine_gun,uav_kit_mount', f'ammunition=ammo_50cal:2000,{KIT}:{KITS}'],
          squad='Int_recon_uav', squad_name='Recon UAV', drone='Int_recon_drone',
          drone_stats=DRONE + ['max_velocity=9', 'max_walk_velocity=9']),
@@ -105,16 +105,17 @@ SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # fact
 # In the game's own style: a few short paragraphs of who built it and why, then what it can do; no numbers.
 NL = '&#10;&#10;'
 ENCYCLOPEDIA = {
-    'Int_uav_carrier': ('UAV Carrier', NL.join([
+    'Int_uav_carrier': ('Recon UAV Carrier', NL.join([
         'Light Integrators gun truck, refitted to carry and control a reconnaissance drone.',
         'The fighting compartment now holds a drone launcher and a control station. The link takes all the power '
-        'the electric engine can spare, so the truck stays in place while its drone is in the air.',
+        'the electric engine can spare, so the truck is immobile while its drone is in the air.',
         'Can be quickly deployed to launch its drone. Each drone takes a UAV kit, and kits are expensive: every '
         'launch should count.'])),
     'Res_patchwork_uav_carrier': ('Patchwork UAV Carrier', NL.join([
-        'Movement van with its passenger compartment given over to a drone launcher and a control station.',
-        'The operator needs the van standing still and every wire in it working, so the van stays in place while '
-        'its drone is in the air.',
+        'Movement van, refitted to carry and control a reconnaissance drone. The passenger compartment has given '
+        'way to a drone launcher and a control station.',
+        'The operator needs the van standing still and every wire in it working, so the van is immobile while its '
+        'drone is in the air.',
         'Can be quickly deployed to launch its drone. Each drone takes a UAV kit, and spare parts are scarce: every '
         'launch should count.'])),
     'Int_recon_uav': ('Recon UAV', NL.join([
@@ -122,7 +123,7 @@ ENCYCLOPEDIA = {
         'everything they did not trust and rebuilt the drone to answer to its carrier alone.',
         'The drone is unarmed and fragile, but its link has no range limit: it can look anywhere without risking a '
         'single soldier. When its carrier packs up, the drone destroys itself rather than be captured.',
-        'Can only be launched by a deployed UAV Carrier.'])),
+        'Can only be launched by a deployed Recon UAV Carrier.'])),
     'Res_patchwork_uav': ('Patchwork UAV', NL.join([
         'Ten wrecked Legion scouts went in, one working drone came out. Movement mechanics collected the parts on '
         'the battlefield and reflashed the drone to serve the Movement. It is slow and rusty, and its eye glows '
@@ -206,8 +207,8 @@ TEST_STRINGS = [
 
 MOD_JSON = {
     'name': 'UAV Carriers',
-    'description': ('Two UAV carriers that keep a recon drone in the air while deployed (F4): the Integrators\' UAV '
-                    'Carrier and the Resistance\'s Patchwork UAV Carrier, its drone put together from Legion scrap. '
+    'description': ('Two UAV carriers that keep a recon drone in the air while deployed (F4): the Integrators\' Recon '
+                    'UAV Carrier and the Resistance\'s Patchwork UAV Carrier, its drone put together from Legion scrap. '
                     f'Each carries {KITS} UAV kits, one per drone, and no passengers. Requires the Spawn Framework '
                     '(plugin and mod).'),
     'icon': 'basis/mod_icon.dds',

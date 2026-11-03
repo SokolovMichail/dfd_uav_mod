@@ -1,5 +1,5 @@
 """The Patchwork UAV Carrier's drone, rusty: its own model, material and textures, made from the swarm drone's
-(lgn_swarm) so that the Legion's drones and the UAV Carrier's clean drone keep theirs.
+(lgn_swarm) so that the Legion's drones and the Recon UAV Carrier's clean drone keep theirs.
 
   model     animations/new/skin/<name>.model - lgn_swarm.model with its material list (the MTRL section at the end:
             a count and null-terminated paths, then CLDR - no sizes before them) naming the new material; a humans.xml

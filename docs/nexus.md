@@ -12,7 +12,7 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
 * Modders need no code: a few cells in the game's vehicle table make a carrier. A guide for modders is included (SpawnFramework_MODDING.txt).
 
 **UAV Carriers** - the example mod, two carriers built on the framework:
-* UAV Carrier - the Integrators' gun truck refitted to carry a recon drone, a little slower than the Legion's swarm scouts.
+* Recon UAV Carrier - the Integrators' gun truck refitted to carry a recon drone, a little slower than the Legion's swarm scouts.
 * Patchwork UAV Carrier - a Resistance van with a drone put together from Legion scrap: slow, rusty, its eye glowing green. Flies. Sometimes.
 
   *Patchwork UAV - operating instructions:*

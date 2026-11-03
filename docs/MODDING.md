@@ -175,12 +175,12 @@ UAV Carriers clones two vehicles. The clones differ from the originals in these 
 
 | Vehicle | Copy of | `gun_mounts` | `ammunition` | `people_capacity` |
 |---|---|---|---|---|
-| UAV Carrier (`Int_uav_carrier`) | `Int_guntruck` | `stryker_machine_gun,uav_kit_mount` | `ammo_50cal:2000,uav_kit:5` | `0` |
+| Recon UAV Carrier (`Int_uav_carrier`) | `Int_guntruck` | `stryker_machine_gun,uav_kit_mount` | `ammo_50cal:2000,uav_kit:5` | `0` |
 | Patchwork UAV Carrier (`Res_patchwork_uav_carrier`) | `Res_van` | `uav_kit_mount_van` | `uav_kit:5` | `0` |
 
 Both have `abilities=ammunition_recharge` and `capacity_ammo_recharger=0`, and in the framework's columns:
 
-| Column | UAV Carrier | Patchwork UAV Carrier |
+| Column | Recon UAV Carrier | Patchwork UAV Carrier |
 |---|---|---|
 | `spawn_squad` | `Int_recon_uav` | `Res_patchwork_uav` |
 | `spawn_ammo` | `uav_kit` | `uav_kit` |
@@ -190,7 +190,7 @@ Both have `abilities=ammunition_recharge` and `capacity_ammo_recharger=0`, and i
 
 Each squad is one drone, a copy of the Legion's swarm scout (`Lgn_swarm`) with the perk `noCorpse`, a small blast
 when it dies (`explode_damage = 1-2:he30` over 2 m, `destroy_effect = destruction_swarm_explosive`) and its own
-speed: 9 for the UAV Carrier's, 6 for the Patchwork one's, which also has a rusty model of its own
+speed: 9 for the Recon UAV Carrier's, 6 for the Patchwork one's, which also has a rusty model of its own
 (`mesh = uavc_drone`).
 
 Plus new names, the kit and its launcher, encyclopedia articles for both carriers and both drones (the drones' as
