@@ -42,6 +42,7 @@ import buttons  # noqa: E402
 import framework as fw  # noqa: E402
 from front_drone import front_drone  # noqa: E402
 import kit_icons  # noqa: E402
+import rusty_drone  # noqa: E402
 
 KIT = 'uav_kit'
 KITS = 5
@@ -49,6 +50,13 @@ KITS = 5
 # round's) - textures/ui/pictures/Ammunition/pwuav_kit[_o, _p, _off, _off_o, _off_p].dds - and its name and
 # description in the ammunition panel (locale/ammunition.xml).
 KIT_PICTURE = 'pwuav_kit'
+# The Patchwork UAV's drone is rusty (art/rusty_drone.py): its own model, material and textures, made from the swarm
+# drone's; the Recon Van's drone and the Legion's keep the clean ones.
+RUSTY_DRONE = 'pwuav_drone'
+SWARM = dict(model='animations/new/skin/lgn_swarm.model', material='materials/vehicles/lgn_swarm.material',
+             albedo='textures/vehicle/swarm_albedo.dds', rough='textures/vehicle/swarm_rough.dds',
+             emission='textures/vehicle/swarm_emission.dds',
+             rust='textures/buildings/rustmetal_albedo.dds')
 KIT_LOOK_FROM = 'textures/ui/pictures/Ammunition/smoke_heavy'
 KIT_TEXT = ['content=UAV kits', 'tooltip_name=UAV kits',  # tooltip_add: the game's (the supply cost, forbidding)
             'tooltip_desc=A recon drone, packed for launch: a deployed drone van (F4) spends one per drone. No gun '
@@ -69,7 +77,8 @@ UNITS = [
                          'res_van_passenger_gun4,res_van_passenger_gun5,uav_kit_mount_van',
                          f'ammunition={KIT}:{KITS}'],
          squad='Res_patchwork_uav', squad_name='Patchwork UAV', drone='Res_patchwork_drone',
-         drone_stats=DRONE + ['max_velocity=6', 'max_walk_velocity=6', 'angle_velocity=1.5']),
+         drone_stats=DRONE + ['max_velocity=6', 'max_walk_velocity=6', 'angle_velocity=1.5',
+                              f'mesh={RUSTY_DRONE}']),  # rusty: its own model (art/rusty_drone.py)
 ]
 
 # table -> [(new row, the row it copies, its changes)], applied in this order
@@ -261,6 +270,22 @@ def main():
     smoke = {s: Image.open(S('base', f'{KIT_LOOK_FROM}{s}.dds')).convert('RGBA') for s in kit_icons.STATES}
     header = open(S('base', f'{KIT_LOOK_FROM}_off.dds'), 'rb').read()[:128]  # uncompressed 32-bit, 88x52
     kit_icons.make(drone, smoke, header, os.path.join(ammo_pictures, KIT_PICTURE))
+
+    print('== the rusty drone')
+    basis = os.path.join(a.out, 'basis')
+    for d in ('animations/new/skin', 'materials/vehicles', 'textures/vehicle'):
+        os.makedirs(os.path.join(basis, *d.split('/')), exist_ok=True)
+    material = f'materials/vehicles/{RUSTY_DRONE}.material'
+    model = rusty_drone.model_with_material(open(S('base', SWARM['model']), 'rb').read(), material)
+    with open(os.path.join(basis, 'animations', 'new', 'skin', f'{RUSTY_DRONE}.model'), 'wb') as f:
+        f.write(model)
+    with open(os.path.join(basis, *material.split('/')), 'w', encoding='utf-8', newline='\n') as f:
+        f.write(rusty_drone.material(open(S('base', SWARM['material']), encoding='utf-8').read(), RUSTY_DRONE))
+    texture = lambda rel: Image.open(S('base', SWARM[rel])).convert('RGBA')  # noqa: E731
+    albedo, rough = rusty_drone.rusty(texture('albedo'), texture('rough'), texture('rust'))
+    albedo, emission = rusty_drone.green_eye(albedo, brightest=180), rusty_drone.green_eye(texture('emission'))
+    for kind, image in (('albedo', albedo), ('rough', rough), ('emission', emission)):
+        rusty_drone.write_dds(os.path.join(basis, 'textures', 'vehicle', f'{RUSTY_DRONE}_{kind}.dds'), image)
 
     print('== names')
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
