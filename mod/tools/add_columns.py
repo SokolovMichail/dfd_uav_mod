@@ -4,8 +4,8 @@ which the game ignores and the framework reads.
 
     python add_columns.py <in.xml> <out.xml> <column,column,...> <sysname>:<column>=<value>[;<column>=<value>...] ...
 
-The columns go after the last column of the header (the first row of the first sheet), with ss:Index; a row gets
-its cells after its own last cell. A column that is already in the header is used as it is.
+The columns go after the last column of the header (the first row of the first sheet) and of every row, with
+ss:Index; a row gets its cells after its own last cell. A column that is already in the header is used as it is.
 """
 import os
 import re
@@ -40,7 +40,9 @@ def main(src, dst, columns, edits):
     rows = list(ROW_RE.finditer(table))
     head = rows[0]
     header = {cell_text(m.group()): col for col, m in cells(head.group())}
-    last = max(header.values())
+    # after the header's last column - and after every row's last cell: some tables (the Resistance DLC's cars.xml)
+    # have rows with cells past the header, in columns of no name
+    last = max([max(header.values())] + [max((col for col, _ in cells(r.group())), default=0) for r in rows[1:]])
     added = []
     for name in columns:
         if name not in header:
