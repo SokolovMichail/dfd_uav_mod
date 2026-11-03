@@ -14,7 +14,7 @@
       "key": "enabled",
       "type": "bool",
       "default": "true",
-      "description": "Spawn Framework: a vehicle deployed in F4 mode keeps a squad of its own next to it (for mods made on the framework, such as UAV Carriers). Restart required."
+      "description": "Spawn Framework: a vehicle deployed in F4 mode keeps a squad of its own next to it, or launches squads (for mods made on the framework, such as UAV Carriers). Restart required."
     },
     {
       "key": "log",
