@@ -30,6 +30,8 @@ import shutil
 import subprocess
 import sys
 
+from PIL import Image
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 MOD = os.path.join(HERE, '..')
 TOOLS = os.path.join(MOD, 'tools')
@@ -39,9 +41,18 @@ from gamefiles import Game  # noqa: E402
 import buttons  # noqa: E402
 import framework as fw  # noqa: E402
 from front_drone import front_drone  # noqa: E402
+import kit_icons  # noqa: E402
 
 KIT = 'uav_kit'
 KITS = 5
+# The kit's own ammunition pictures (art/kit_icons.py: the drone in the style of the game's, made on the smoke
+# round's) - textures/ui/pictures/Ammunition/pwuav_kit[_o, _p, _off, _off_o, _off_p].dds - and its name and
+# description in the ammunition panel (locale/ammunition.xml).
+KIT_PICTURE = 'pwuav_kit'
+KIT_LOOK_FROM = 'textures/ui/pictures/Ammunition/smoke_heavy'
+KIT_TEXT = ['content=UAV kits', 'tooltip_name=UAV kits',  # tooltip_add: the game's (the supply cost, forbidding)
+            'tooltip_desc=A recon drone, packed for launch: a deployed drone van (F4) spends one per drone. No gun '
+            'fires it.']
 # The F4 button (a supply component that hands out nothing: the framework hangs the deploy on it).
 F4 = ['abilities=ammunition_recharge', 'capacity_ammo_recharger=0']
 # A recon drone: a swarm scout alone, no corpse, a small blast when it dies (its van packs up) - the bomb drones'
@@ -63,7 +74,9 @@ UNITS = [
 
 # table -> [(new row, the row it copies, its changes)], applied in this order
 ROWS = {
-    'ammunition': [(KIT, 'heavy_sg', ['cost_recharge=200', 'ammo_class=none', 'comments=UAV kit (Spawn Framework)'])],
+    'ammunition': [(KIT, 'heavy_sg', ['cost_recharge=200', 'ammo_class=none', 'comments=UAV kit (Spawn Framework)',
+                                      f'image=Ammunition/{KIT_PICTURE}', f'image_grayed=Ammunition/{KIT_PICTURE}_off',
+                                      f'image_denied=Ammunition/{KIT_PICTURE}_off'])],
     'guns': [('uav_kit_launcher', 'gl_m6', [f'ammunition={KIT}:1', 'comment=UAV kit launcher (Spawn Framework)'])],
     'gun_mounts': [('uav_kit_mount', 'stryker_grenade_launcher_1', ['gun=uav_kit_launcher']),
                    ('uav_kit_mount_van', 'res_van_passenger_gun6', ['gun=uav_kit_launcher'])],
@@ -239,8 +252,15 @@ def main():
     print('== F4 pictures')
     pictures = os.path.join(a.out, 'basis', *fw.PICTURES_DIR.split('/'))
     os.makedirs(pictures)
-    buttons.make(S('base', fw.UNPACK_BUTTON), front_drone(buttons.load(S('base', DRONES_ICON))[0]),
-                 os.path.join(pictures, PICTURES))
+    drone = front_drone(buttons.load(S('base', DRONES_ICON))[0])
+    buttons.make(S('base', fw.UNPACK_BUTTON), drone, os.path.join(pictures, PICTURES))
+
+    print('== the UAV kit\'s pictures')
+    ammo_pictures = os.path.join(a.out, 'basis', 'textures', 'ui', 'pictures', 'Ammunition')
+    os.makedirs(ammo_pictures)
+    smoke = {s: Image.open(S('base', f'{KIT_LOOK_FROM}{s}.dds')).convert('RGBA') for s in kit_icons.STATES}
+    header = open(S('base', f'{KIT_LOOK_FROM}_off.dds'), 'rb').read()[:128]  # uncompressed 32-bit, 88x52
+    kit_icons.make(drone, smoke, header, os.path.join(ammo_pictures, KIT_PICTURE))
 
     print('== names')
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
@@ -249,6 +269,7 @@ def main():
                [(u['van'], u['van_from'], [f'content={u["van_name"]}']) for u in UNITS + tests])
     clone_rows(S('loc_en', 'locale/squads.xml'), os.path.join(loc, 'squads.xml'),
                [(u['squad'], 'Lgn_swarm', [f'content={u["squad_name"]}']) for u in UNITS])
+    clone_rows(S('loc_en', 'locale/ammunition.xml'), os.path.join(loc, 'ammunition.xml'), [(KIT, 'heavy_sg', KIT_TEXT)])
     clone_rows(S('loc_en', 'locale/strres.xml'), os.path.join(loc, 'strres.xml'),
                [(key, row, [f'content={text}']) for key, row, text in STRINGS + (TEST_STRINGS if tests else [])])
 
