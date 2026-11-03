@@ -13,7 +13,15 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
 
 **UAV Carriers** - the example mod, two carriers built on the framework:
 * UAV Carrier - the Integrators' gun truck refitted to carry a recon drone, a little slower than the Legion's swarm scouts.
-* Patchwork UAV Carrier - a Resistance van with a drone put together from Legion scrap: slow, rusty, its eye glowing green.
+* Patchwork UAV Carrier - a Resistance van with a drone put together from Legion scrap: slow, rusty, its eye glowing green. Flies. Sometimes.
+
+  *Patchwork UAV - operating instructions:*
+  1. Deploy the van.
+  2. Recite the Tech-Litany.
+  3. Pray to the Omnissiah.
+  4. If the drone takes off, the blessing is granted. If not, repeat step 2 louder.
+
+  *Warranty void for drones that revert to Legion factory settings.*
 * Each carries 5 UAV kits (500 supply to restock each, like any ammunition) and spends one per drone: a drone is a pricey, single-use, fragile scout with no range limit - eyes anywhere without risking anyone, while its carrier stands still. Both drones have encyclopedia articles in the base game and both DLCs. One drone per carrier at a time; the next one is ready 60 s after the last one dies. The carriers take no passengers.
 * Where to get them:
   * Resistance campaign: both in the first sector shop.

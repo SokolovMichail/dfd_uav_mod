@@ -118,10 +118,13 @@ ENCYCLOPEDIA = {
                       'It has no range limit and no gun: it goes where no soldier should, and sees for them. It is '
                       'fragile and single-use - it self-destructs when its carrier packs up - and every drone costs '
                       'a pricey UAV kit.&#10;&#10;Only a deployed UAV Carrier can launch it.'),
-    'Res_patchwork_uav': ('Patchwork UAV', 'Ten wrecked Legion scouts went in, one working drone came out. The '
-                          'mechanics who built it credit the welding. The one who burned incense over it and prayed '
-                          'to the Omnissiah credits the Machine Spirit, and nobody has dared to argue since it took '
-                          'off.&#10;&#10;Slow and rusty, its eye glowing green, it has no range limit and no gun: it '
+    # The operating instructions: DFDRepairMod docs/Next_Mods_Handoff.md, "For the Nexus descriptions".
+    'Res_patchwork_uav': ('Patchwork UAV', 'Ten wrecked Legion scouts went in, one working drone came out. Put '
+                          'together from scrap. Flies. Sometimes.&#10;&#10;Operating instructions:&#10;'
+                          '1. Deploy the van.&#10;2. Recite the Tech-Litany.&#10;3. Pray to the Omnissiah.&#10;'
+                          '4. If the drone takes off, the blessing is granted. If not, repeat step 2 louder.'
+                          '&#10;&#10;Warranty void for drones that revert to Legion factory settings.'
+                          '&#10;&#10;Slow and rusty, its eye glowing green, it has no range limit and no gun: it '
                           'goes where no fighter should, and sees for them. It is fragile and single-use - it '
                           'self-destructs when its carrier packs up - and every drone costs a pricey UAV kit.'
                           '&#10;&#10;Only a deployed Patchwork UAV Carrier can launch it.'),
