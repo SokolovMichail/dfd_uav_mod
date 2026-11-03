@@ -4,8 +4,8 @@ and a vignette, Bahnschrift titles in cream and amber, the game's own pictures l
 
     python mod/framework/art/mod_art.py <buttons_unpack_n.dds> <rifle squad icon.dds> <out.dds> [preview.png]
 
-The framework's icon shows what it does, since it adds no vehicles: F4's three pictures (buttons.py, from the
-generic rifle squad's icon) - deploy, the cooldown filling up, recall - large and labelled.
+The framework's icon shows what it does, since it adds no vehicles: F4's pictures (buttons.py, from the generic
+rifle squad's icon) - deploy and the cooldown filling up - large and labelled.
 
 A MODS icon is 1920x1080, uncompressed 32-bit DDS with every mipmap level, as the game's mods/mod_example_1.
 """
@@ -89,16 +89,15 @@ def filling(ready, cooldown, part):
 
 
 def render_framework(button, icon):
-    """The framework's icon: its name, and F4's three pictures made from `icon` on `button` (RGBA), labelled."""
+    """The framework's icon: its name, and F4's deploy and cooldown pictures made from `icon` on `button` (RGBA),
+    labelled."""
     img = background()
     centered(img, W / 2, 70, 'SPAWN FRAMEWORK', font(140, 'Bold'), CREAM, glow=True)
     centered(img, W / 2, 245, 'UNITS ON DEPLOY  +  F4 COOLDOWN', font(56, 'SemiBold'), AMBER)
     ready, cooldown = buttons.cooldown_pair(buttons.with_icon(button, icon))
-    recall = buttons.recall(button, icon)
     size = 300
     up = lambda p: p.resize((size, size), Image.NEAREST)  # noqa: E731  the game's pixels, crisp
-    pictures = [(460, up(ready), 'DEPLOY'), (960, up(filling(ready, cooldown, 0.55)), 'COOLDOWN'),
-                (1460, up(recall), 'RECALL')]
+    pictures = [(640, up(ready), 'DEPLOY'), (1280, up(filling(ready, cooldown, 0.55)), 'COOLDOWN')]
     top = 470
     for cx, pic, label in pictures:
         with_shadow(img, pic, cx - size // 2, top)
