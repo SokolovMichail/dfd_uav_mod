@@ -73,6 +73,43 @@ ROWS = {
 }
 SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # faction -> the row the vans go after
 
+# The encyclopedia's articles of the vans (&#10; - a new line, as the game's tables write it).
+ENCYCLOPEDIA = {
+    'Int_recon_van': ('Recon Van', 'Integrators gun truck refitted as a drone carrier.&#10;&#10;Deployed (F4), it keeps '
+                      'one recon drone in the air; the drone self-destructs when the van packs up, and a lost drone '
+                      'packs the van up. Carries 5 UAV kits, one per drone; the next drone is ready 60 s after one '
+                      'dies.'),
+    'Res_patchwork_van': ('Patchwork UAV Van', 'A Resistance van with a recon drone put together from Legion scrap. '
+                          'Slow, but it flies.&#10;&#10;Deployed (F4), it keeps the drone in the air; the drone '
+                          'self-destructs when the van packs up, and a lost drone packs the van up. Carries 5 UAV '
+                          'kits, one per drone; the next drone is ready 60 s after one dies.'),
+}
+
+# Where the vans are, one of each in every shop, as HEMTT Spares has it: the base game's campaign shops (not the
+# test_shop_* and the demo's resistance_dlc_shop_demo), the first zone of the Resistance DLC's uprising, every shop
+# of the Canada DLC. (shop, the cars cell's edit - {} the van).
+BASE_SHOPS = ['taos_shop_1', 'taos_shop_2', 'taos_shop_3', 'albuquerque_shop', 'res_sup_base_0', 'res_sup_base_1',
+              'vega_1_r', 'vega_1_m', 'tortuga_1', 'tortuga_2', 'tortuga_3', 'vega_2_r', 'vega_2_m',
+              'resistance_camp', 'integrators_main_1', 'integrators_main_2', 'integrators_main_2a',
+              'integrators_main_3', 'integrators_main_4', 'res_forward_post_0', 'integrators_scavengers_1',
+              'integrators_scavengers_2', 'resistance_far_recon']
+CANADA_SHOPS = ['camp_1_shop', 'camp_2_shop', 'camp_3_shop', 'niagara_shop', 'resistance_camp']
+
+# The game's layers the vans go into. A DLC has its own cars, humans, squads, shops and encyclopedia (it takes the
+# base game's ammunition, guns, mounts and names), so they go into each: the mod's folder has the layer's tree
+# (dlc\<DLC>\basis\..., as the game's).
+LAYERS = [
+    dict(layer='base', dir='basis', tables=['ammunition', 'guns', 'gun_mounts', 'humans', 'squads', 'cars'],
+         encyclopedia='encyclopedia', loc_layer='loc_en', encyclopedia_loc='encyclopedia_loc',
+         loc_dir='localization/en/basis_en/locale', shops=[(s, 'cars,+={}') for s in BASE_SHOPS]),
+    dict(layer='resistance', dir='dlc/Resistance/basis', tables=['humans', 'squads', 'cars'],
+         encyclopedia='encyclopedia_dlc', loc_layer='resistance_loc_en', encyclopedia_loc='encyclopedia_dlc_loc',
+         loc_dir='dlc/Resistance/localization/en/basis_en/locale', shops=[('sector_1_reward', 'cars+=,{}:1')]),
+    dict(layer='canada', dir='dlc/Canada/basis', tables=['humans', 'squads', 'cars'],
+         encyclopedia='encyclopedia_dlc', loc_layer='canada_loc_en', encyclopedia_loc='encyclopedia_dlc_loc',
+         loc_dir='dlc/Canada/localization/en/basis_en/locale', shops=[(s, 'cars,+={}') for s in CANADA_SHOPS]),
+]
+
 # The vans' F4 look: pictures named with the mod's own prefix (no other mod's file can be in the way), tooltip keys
 # of at most 15 characters (the plugin writes them into the game's string in place).
 PICTURES = 'pwuav'
@@ -156,17 +193,36 @@ def main():
     g = Game(a.game)
     S = lambda layer, rel: g.extract(layer, rel, os.path.join(cache, layer))[0]  # noqa: E731
 
-    print('== tables')
-    species = os.path.join(a.out, 'basis', 'scripts', 'species')
-    os.makedirs(species)
-    tables = dict(ROWS, cars=ROWS['cars'] + [(t['van'], t['van_from'], t['van_stats']) for t in tests])
-    for table, rows in tables.items():
-        clone_rows(S('base', f'scripts/species/{table}.xml'), os.path.join(species, f'{table}.xml'), rows)
-    cars = os.path.join(species, 'cars.xml')
     look = ';'.join(f'{k}={v}' for k, v in LOOK.items())
-    tool('add_columns.py', cars, cars, ','.join(fw.SPAWN_COLUMNS),
-         *[f'{u["van"]}:spawn_squad={u["squad"]};spawn_ammo={KIT};spawn_cooldown=60;{look}' for u in UNITS],
-         *[f'{t["van"]}:{t["columns"]}' for t in tests])
+    for L in LAYERS:
+        print(f'== {L["layer"]}: tables, shops, encyclopedia')
+        species = os.path.join(a.out, *L['dir'].split('/'), 'scripts', 'species')
+        os.makedirs(species)
+        base = L['layer'] == 'base'
+        for table in L['tables']:
+            rows = ROWS[table] + ([(t['van'], t['van_from'], t['van_stats']) for t in tests]
+                                  if table == 'cars' and base else [])  # the test vehicles: skirmish only
+            path = os.path.join(species, f'{table}.xml')
+            clone_rows(S(L['layer'], f'scripts/species/{table}.xml'), path, rows)
+        cars = os.path.join(species, 'cars.xml')
+        tool('add_columns.py', cars, cars, ','.join(fw.SPAWN_COLUMNS),
+             *[f'{u["van"]}:spawn_squad={u["squad"]};spawn_ammo={KIT};spawn_cooldown=60;{look}' for u in UNITS],
+             *([f'{t["van"]}:{t["columns"]}' for t in tests] if base else []))
+        shops = os.path.join(species, 'shop_presets.xml')
+        shutil.copy(S(L['layer'], 'scripts/species/shop_presets.xml'), shops)
+        for shop, edit in L['shops']:
+            for u in UNITS:
+                tool('patch_table.py', shops, shops + '.tmp', shop, edit.format(u['van']))
+                os.replace(shops + '.tmp', shops)
+        encyclopedia = os.path.join(species, f'{L["encyclopedia"]}.xml')
+        clone_rows(S(L['layer'], f'scripts/species/{L["encyclopedia"]}.xml'), encyclopedia,
+                   [(u['van'], u['van_from'], ['presets=']) for u in UNITS])  # not the gun trucks' variants
+        loc = os.path.join(a.out, *L['loc_dir'].split('/'))
+        os.makedirs(loc, exist_ok=True)
+        articles = os.path.join(loc, f'{L["encyclopedia_loc"]}.xml')
+        clone_rows(S(L['loc_layer'], f'locale/{L["encyclopedia_loc"]}.xml'), articles,
+                   [(u['van'], u['van_from'], [f'name={ENCYCLOPEDIA[u["van"]][0]}',
+                                               f'description={ENCYCLOPEDIA[u["van"]][1]}']) for u in UNITS])
 
     print('== skirmish armies')
     edits, anchors = [], dict(SKIRMISH)
@@ -188,7 +244,7 @@ def main():
 
     print('== names')
     loc = os.path.join(a.out, 'localization', 'en', 'basis_en', 'locale')
-    os.makedirs(loc)
+    os.makedirs(loc, exist_ok=True)
     clone_rows(S('loc_en', 'locale/cars.xml'), os.path.join(loc, 'cars.xml'),
                [(u['van'], u['van_from'], [f'content={u["van_name"]}']) for u in UNITS + tests])
     clone_rows(S('loc_en', 'locale/squads.xml'), os.path.join(loc, 'squads.xml'),
