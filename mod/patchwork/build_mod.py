@@ -55,6 +55,7 @@ KIT_PICTURE = 'pwuav_kit'
 RUSTY_DRONE = 'pwuav_drone'
 SWARM = dict(model='animations/new/skin/lgn_swarm.model', material='materials/vehicles/lgn_swarm.material',
              albedo='textures/vehicle/swarm_albedo.dds', rough='textures/vehicle/swarm_rough.dds',
+             emission='textures/vehicle/swarm_emission.dds',
              rust='textures/buildings/rustmetal_albedo.dds')
 KIT_LOOK_FROM = 'textures/ui/pictures/Ammunition/smoke_heavy'
 KIT_TEXT = ['content=UAV kits', 'tooltip_name=UAV kits',  # tooltip_add: the game's (the supply cost, forbidding)
@@ -282,7 +283,8 @@ def main():
         f.write(rusty_drone.material(open(S('base', SWARM['material']), encoding='utf-8').read(), RUSTY_DRONE))
     texture = lambda rel: Image.open(S('base', SWARM[rel])).convert('RGBA')  # noqa: E731
     albedo, rough = rusty_drone.rusty(texture('albedo'), texture('rough'), texture('rust'))
-    for kind, image in (('albedo', albedo), ('rough', rough)):
+    albedo, emission = rusty_drone.green_eye(albedo, brightest=180), rusty_drone.green_eye(texture('emission'))
+    for kind, image in (('albedo', albedo), ('rough', rough), ('emission', emission)):
         rusty_drone.write_dds(os.path.join(basis, 'textures', 'vehicle', f'{RUSTY_DRONE}_{kind}.dds'), image)
 
     print('== names')

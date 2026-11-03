@@ -6,7 +6,8 @@ that the Legion's drones and the Recon Van's clean drone keep theirs.
             row's `mesh` names the model (the Legion's repair drone is lgn_swarm_repairdrone the same way)
   material  materials/vehicles/<name>.material - the swarm's, with the new albedo and rough textures and the
             emission dimmed (4.0 -> 2.2, as the game's own rusty Legion tank, lgn_tank_main_rust)
-  textures  textures/vehicle/<name>_albedo.dds, <name>_rough.dds; the normal and emission maps stay the swarm's
+  textures  textures/vehicle/<name>_albedo.dds, <name>_rough.dds, <name>_emission.dds; the normal map stays the
+            swarm's. The eye glows green (green_eye): the emission's red glow and the albedo's red lens turned green
 
 The rust is made the way the game's rusty tank differs from the clean one: over rust patches (fractal noise, the
 same every build) the albedo takes the colour and grain of the game's own tileable rust (textures/buildings/
@@ -40,6 +41,7 @@ def material(swarm_material, name):
     m = json.loads(swarm_material)
     m['Textures']['albedo'] = f'textures/vehicle/{name}_albedo.dds'
     m['Textures']['rough'] = f'textures/vehicle/{name}_rough.dds'
+    m['Textures']['emission'] = f'textures/vehicle/{name}_emission.dds'
     m.setdefault('Floats', {})['emission_power'] = EMISSION_POWER
     return json.dumps(m, indent=4) + '\n'
 
@@ -82,6 +84,22 @@ def rusty(albedo, rough, rust):
     out_r[..., 1] = r[..., 1] * (1 - m2) + 220 * m2    # roughness -> rough
     to = lambda x: Image.fromarray(np.clip(np.rint(x), 0, 255).astype(np.uint8), 'RGBA')  # noqa: E731
     return to(out_a), to(out_r)
+
+
+GREEN = (0.25, 1.0, 0.15)  # the eye's green: the red's strength in each channel
+
+
+def green_eye(image, brightest=0):
+    """The image with its red glow (emission) or red lens (albedo) green: pixels clearly red - red well above green
+    and blue, and at least `brightest` - take GREEN at the red's strength. The swarm's eye and the red lines around it
+    glow; its blue sensor stays. In the albedo only the lens is that bright (245): its dark red octagon (about 120) is
+    paint and stays."""
+    a = np.asarray(image, dtype=np.float64).copy()
+    strength = a[..., 0].copy()
+    red = (strength > a[..., 1] + 60) & (strength > a[..., 2] + 60) & (strength >= brightest)
+    for c, k in enumerate(GREEN):
+        a[..., c] = np.where(red, strength * k, a[..., c])
+    return Image.fromarray(np.clip(np.rint(a), 0, 255).astype(np.uint8), 'RGBA')
 
 
 def write_dds(path, image):
