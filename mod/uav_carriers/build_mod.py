@@ -43,6 +43,8 @@ import buttons  # noqa: E402
 import framework as fw  # noqa: E402
 from front_drone import front_drone  # noqa: E402
 import kit_icons  # noqa: E402
+import mod_art  # noqa: E402
+import mod_icon  # noqa: E402
 import rusty_drone  # noqa: E402
 
 KIT = 'uav_kit'
@@ -59,6 +61,11 @@ SWARM = dict(model='animations/new/skin/lgn_swarm.model', material='materials/ve
              emission='textures/vehicle/swarm_emission.dds',
              rust='textures/buildings/rustmetal_albedo.dds')
 KIT_LOOK_FROM = 'textures/ui/pictures/Ammunition/smoke_heavy'
+# The MODS menu icon (art/mod_icon.py, also the mod page's cover): the game's pictures of the carriers' vehicles and
+# of the swarm drones.
+ICON_PICTURES = ['textures/ui/pictures/tech_pic/vehicles_icons_big/int_guntruck.dds',
+                 'textures/ui/pictures/tech_pic/vehicles_icons_big/Res_van.dds',
+                 'textures/ui/pictures/tech_pic/infantry_icons_big/lgn_drones.dds']
 KIT_TEXT = ['content=UAV kits', 'tooltip_name=UAV kits',  # tooltip_add: the game's (the supply cost, forbidding)
             'tooltip_desc=A recon drone, packed for launch: a deployed drone van (F4) spends one per drone. No gun '
             'fires it.']
@@ -298,9 +305,9 @@ def main():
     clone_rows(S('loc_en', 'locale/strres.xml'), os.path.join(loc, 'strres.xml'),
                [(key, row, [f'content={text}']) for key, row, text in STRINGS + (TEST_STRINGS if tests else [])])
 
-    # The MODS menu lists only mods with an icon; until the mod has its own, the game's example mod's.
-    shutil.copy(os.path.join(a.game, 'mods', 'mod_example_1', 'basis', 'mod_icon.dds'),
-                os.path.join(a.out, 'basis', 'mod_icon.dds'))
+    print('== the MODS menu icon')  # (the menu lists only mods with an icon)
+    mod_art.save_dds(mod_icon.render(*[S('base', rel) for rel in ICON_PICTURES]),
+                     os.path.join(a.out, 'basis', 'mod_icon.dds'))
     info = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description'])
     with open(os.path.join(a.out, 'mod.json'), 'w', encoding='utf-8') as f:
         json.dump(info, f, indent=4)
