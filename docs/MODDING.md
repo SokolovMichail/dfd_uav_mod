@@ -23,7 +23,7 @@ That is a **tethered** vehicle, the default. An **untethered** one (`spawn_tethe
 On the framework's vehicles F4 shows the vehicle's own pictures and tooltips (see "F4's look"); other vehicles' F4
 stays as the game draws it.
 
-Patchwork UAV, the framework's example mod, adds two vans that keep a recon drone in the air.
+UAV Carriers, the framework's example mod, adds two UAV carriers that keep a recon drone in the air.
 
 ## What the framework is
 
@@ -47,7 +47,7 @@ columns it does not know):
 | `spawn_cooldown` | seconds | game time after the squad dies (untethered: after the launch) before the next one; default 60 |
 | `spawn_tethered` | `true` / `false` (`0`, `no`) | `true` (default) - the squad belongs to the vehicle; `false` - the vehicle only launches |
 | `spawn_count` | 1 to 20 | squads per launch, untethered vehicles only for now (a tethered one keeps one squad: a saved game keeps the link to one); default 1 |
-| `spawn_icon`, `spawn_icon_cooldown`, `spawn_icon_recall` | UI pictures, e.g. `main\buttons2\pwuav_ready.dds` | F4's look, see below; empty - the framework's defaults |
+| `spawn_icon`, `spawn_icon_cooldown`, `spawn_icon_recall` | UI pictures, e.g. `main\buttons2\uavc_ready.dds` | F4's look, see below; empty - the framework's defaults |
 | `spawn_tooltip`, `spawn_tooltip_recall` | `locale/strres.xml` keys | F4's tooltips, see below; empty - the framework's defaults |
 
 And in the usual columns:
@@ -60,7 +60,7 @@ And in the usual columns:
 | `gun_mounts` | one mount whose gun loads the kit | **a vehicle stores only the ammunition one of its guns fires** - without such a gun the kits are not there |
 
 The kit is an ammunition row of your own, so the player sees it in the vehicle's ammunition panel and supply
-vehicles restock it (`cost_recharge` - what one kit costs). Patchwork UAV's `uav_kit` is a copy of the smoke round
+vehicles restock it (`cost_recharge` - what one kit costs). UAV Carriers' `uav_kit` is a copy of the smoke round
 `heavy_sg` with `cost_recharge = 200` and `ammo_class = none` (nothing is a target for it, so its launcher never
 fires); the launcher (`guns.xml` `uav_kit_launcher`, a copy of `gl_m6` with `ammunition = uav_kit:1`) sits in a
 mount of the vehicle (`gun_mounts.xml`, a copy of one of the vehicle's own mounts with `gun = uav_kit_launcher`).
@@ -108,7 +108,7 @@ The squad is of its vehicle's team and appears 8 m from it.
   `tanks.<x>.patch.xml` in the mod folder. A vehicle in several mods takes the last mod's row.
 - **Check it works.** The framework's log - `bin\plugins\SpawnFramework.log`, or the DefianceLoader log for
   `sokolov.spawn-framework`: at the first F4 of any vehicle it lists the spawning vehicles it found
-  (`Res_patchwork_van -> Res_patchwork_uav (kit uav_kit, cooldown 60 s)`), then the first deploys, spawns and kills.
+  (`Res_patchwork_uav_carrier -> Res_patchwork_uav (kit uav_kit, cooldown 60 s)`), then the first deploys, spawns and kills.
 - **Single player only.** Not tested in multiplayer.
 - **Saved games.** A vehicle keeps its squad and its cooldown through a save and a load: the framework keeps them in
   the vehicle's F4 button, which the game saves (its timer - the cooldown left, its length - the squad out). A save

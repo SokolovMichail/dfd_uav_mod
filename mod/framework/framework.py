@@ -1,5 +1,5 @@
 """The Spawn Framework mod's pieces, shared by its build (build_framework_mod.py) and the builds of the mods made on it
-(Patchwork UAV's):
+(UAV Carriers'):
 
   * F4's layout: the game's scripts/ui/AbilityButtons/pack.txt with two progress bars added - the only file every
     framework vehicle needs, so only the framework mod ships it;

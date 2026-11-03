@@ -56,21 +56,21 @@ configure_file(plugins/spawn/spawn_framework.plugin.json.in
         "${CMAKE_CURRENT_BINARY_DIR}/spawn_framework.plugin.json" @ONLY)
 
 # ---- the game mods, built from the game's current files: the Spawn Framework's own (mods\Spawn_Framework - F4's
-# layout and the default pictures, shared by every mod made on the framework) and the example made on it, Patchwork
-# UAV (mods\Patchwork_UAV)
+# layout and the default pictures, shared by every mod made on the framework) and the example made on it, UAV
+# Carriers (mods\UAV_Carriers)
 set(FRAMEWORK_MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/Spawn_Framework")
-set(MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/Patchwork_UAV")
-# Patchwork UAV with the framework's test vehicles (mod/patchwork/build_mod.py TEST_UNITS) - off for a release.
-option(SPAWN_TEST_VEHICLES "Add the Spawn Framework's test vehicles to Patchwork UAV" ON)
-set(PATCHWORK_TEST_ARGS "")
+set(MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/UAV_Carriers")
+# UAV Carriers with the framework's test vehicles (mod/uav_carriers/build_mod.py TEST_UNITS) - off for a release.
+option(SPAWN_TEST_VEHICLES "Add the Spawn Framework's test vehicles to UAV Carriers" ON)
+set(CARRIERS_TEST_ARGS "")
 if(SPAWN_TEST_VEHICLES)
-    set(PATCHWORK_TEST_ARGS --test-vehicles)
+    set(CARRIERS_TEST_ARGS --test-vehicles)
 endif()
 add_custom_target(mod
         COMMAND ${Python3_EXECUTABLE} mod/framework/build_framework_mod.py --game "${GAME_DIR}"
                 --out "${FRAMEWORK_MOD_STAGE}" --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION}
-        COMMAND ${Python3_EXECUTABLE} mod/patchwork/build_mod.py --game "${GAME_DIR}" --out "${MOD_STAGE}"
-                --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION} ${PATCHWORK_TEST_ARGS}
+        COMMAND ${Python3_EXECUTABLE} mod/uav_carriers/build_mod.py --game "${GAME_DIR}" --out "${MOD_STAGE}"
+                --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION} ${CARRIERS_TEST_ARGS}
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Build the mods -> ${FRAMEWORK_MOD_STAGE}, ${MOD_STAGE}"
         USES_TERMINAL VERBATIM)
@@ -87,8 +87,9 @@ set(DEPLOY_MOD  # shared by all three: the probe out, the mods in
         COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/SpawnProbe"
         COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Spawn_Framework"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${FRAMEWORK_MOD_STAGE}" "${GAME_DIR}/mods/Spawn_Framework"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/Patchwork_UAV")
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"  # UAV Carriers' old name
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/UAV_Carriers"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/UAV_Carriers")
 set(DEPLOY_PLUGIN_AND_MOD
         COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.dll"
                 "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.plugin.json"
@@ -98,14 +99,14 @@ set(DEPLOY_PLUGIN_AND_MOD
 add_custom_target(deploy
         ${DEPLOY_PLUGIN_AND_MOD}
         DEPENDS SpawnFramework mod
-        COMMENT "Install SpawnFramework.dll, mods\\Spawn_Framework and mods\\Patchwork_UAV into ${GAME_DIR} (bin\\winhttp.dll left as it is)"
+        COMMENT "Install SpawnFramework.dll, mods\\Spawn_Framework and mods\\UAV_Carriers into ${GAME_DIR} (bin\\winhttp.dll left as it is)"
         VERBATIM)
 add_custom_target(deploy_with_loader
         COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:winhttp> "${GAME_DIR}/bin/"
         ${DEPLOY_PLUGIN_AND_MOD}
         DEPENDS winhttp SpawnFramework mod
-        COMMENT "Install winhttp.dll, SpawnFramework.dll, mods\\Spawn_Framework and mods\\Patchwork_UAV into ${GAME_DIR}"
+        COMMENT "Install winhttp.dll, SpawnFramework.dll, mods\\Spawn_Framework and mods\\UAV_Carriers into ${GAME_DIR}"
         VERBATIM)
 add_custom_target(deploy_defiance
         COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnFramework.dll"
@@ -114,7 +115,7 @@ add_custom_target(deploy_defiance
                 "${CMAKE_CURRENT_BINARY_DIR}/spawn_framework.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"
         ${DEPLOY_MOD}
         DEPENDS spawn_framework mod
-        COMMENT "Install the DefianceLoader plugin spawn_framework.dll, mods\\Spawn_Framework and mods\\Patchwork_UAV into ${GAME_DIR}"
+        COMMENT "Install the DefianceLoader plugin spawn_framework.dll, mods\\Spawn_Framework and mods\\UAV_Carriers into ${GAME_DIR}"
         VERBATIM)
 
 # ---- Phase 0 probe (bin\plugins\SpawnProbe.dll) and its test vehicle (mods\SpawnProbe)

@@ -1,16 +1,17 @@
-"""Builds Patchwork UAV (mods\\Patchwork_UAV), a mod made on the Spawn Framework, from the installed game's current
+"""Builds UAV Carriers (mods\\UAV_Carriers), a mod made on the Spawn Framework, from the installed game's current
 files:
 
-    python mod/patchwork/build_mod.py --game <game folder> --out <mods/Patchwork_UAV> [--cache <dir>] [--version 0.1]
+    python mod/uav_carriers/build_mod.py --game <game folder> --out <mods/UAV_Carriers> [--cache <dir>] [--version 0.1]
 
-Two vans that, deployed (F4), keep one recon drone of their own in the air. Each carries 5 UAV kits (an ammunition
-of its own, 200 to restock each) and spends one per drone; the drone dies when its van packs up or is destroyed, and
-the next one waits 60 s after it.
+Two UAV carriers that, deployed (F4), keep one recon drone of their own in the air. Each carries 5 UAV kits (an
+ammunition of its own, 200 to restock each) and spends one per drone; the drone dies when its carrier packs up or is
+destroyed, and the next one waits 60 s after it. They carry no passengers.
 
-- Integrators: Int_recon_van, on the Integrators' gun truck (Int_guntruck): the smoke launcher is a UAV kit
-  launcher. Its drone, Int_recon_uav, is a swarm scout a little slower than the Legion's.
-- Resistance / Founders: Res_patchwork_van, the "rusty" one, on the Resistance van (Res_van): one of its six
-  passenger mounts holds the kit launcher. Its drone, Res_patchwork_uav, is put together from scrap: slow.
+- Integrators: Int_uav_carrier ("UAV Carrier"), on the Integrators' gun truck (Int_guntruck): the smoke launcher is
+  a UAV kit launcher. Its drone, Int_recon_uav, is a swarm scout a little slower than the Legion's.
+- Resistance / Founders: Res_patchwork_uav_carrier ("Patchwork UAV Carrier"), on the Resistance van (Res_van): its
+  passenger mounts give way to the kit launcher. Its drone, Res_patchwork_uav, is put together from scrap: slow and
+  rusty, its eye glowing green.
 
 What makes them the framework's is their cars.xml rows (the framework's columns, framework/framework.py); F4's
 layout comes with the Spawn Framework mod. Their F4 pictures and tooltips are the mod's own: the front drone of the
@@ -18,7 +19,7 @@ swarm drones' icon (art/front_drone.py, made into F4's pictures by the framework
 drone" / "Recall drone".
 
 The game files are taken fresh every time (gamefiles.py: the last archive or folder of the layer that has the
-file), so after a game update a rebuild is enough. The base layer only for now (skirmish, main campaign).
+file), so after a game update a rebuild is enough. The base game (skirmish, main campaign) and both DLCs (LAYERS).
 
 Without the Spawn Framework (plugin and mod) the vans are ordinary vans with a launcher that never fires and the F4
 button of a supply vehicle with nothing to hand out.
@@ -47,12 +48,12 @@ import rusty_drone  # noqa: E402
 KIT = 'uav_kit'
 KITS = 5
 # The kit's own ammunition pictures (art/kit_icons.py: the drone in the style of the game's, made on the smoke
-# round's) - textures/ui/pictures/Ammunition/pwuav_kit[_o, _p, _off, _off_o, _off_p].dds - and its name and
+# round's) - textures/ui/pictures/Ammunition/uavc_kit[_o, _p, _off, _off_o, _off_p].dds - and its name and
 # description in the ammunition panel (locale/ammunition.xml).
-KIT_PICTURE = 'pwuav_kit'
-# The Patchwork UAV's drone is rusty (art/rusty_drone.py): its own model, material and textures, made from the swarm
-# drone's; the Recon Van's drone and the Legion's keep the clean ones.
-RUSTY_DRONE = 'pwuav_drone'
+KIT_PICTURE = 'uavc_kit'
+# The Patchwork UAV Carrier's drone is rusty (art/rusty_drone.py): its own model, material and textures, made from
+# the swarm drone's; the UAV Carrier's drone and the Legion's keep the clean ones.
+RUSTY_DRONE = 'uavc_drone'
 SWARM = dict(model='animations/new/skin/lgn_swarm.model', material='materials/vehicles/lgn_swarm.material',
              albedo='textures/vehicle/swarm_albedo.dds', rough='textures/vehicle/swarm_rough.dds',
              emission='textures/vehicle/swarm_emission.dds',
@@ -61,20 +62,20 @@ KIT_LOOK_FROM = 'textures/ui/pictures/Ammunition/smoke_heavy'
 KIT_TEXT = ['content=UAV kits', 'tooltip_name=UAV kits',  # tooltip_add: the game's (the supply cost, forbidding)
             'tooltip_desc=A recon drone, packed for launch: a deployed drone van (F4) spends one per drone. No gun '
             'fires it.']
-# The F4 button (a supply component that hands out nothing: the framework hangs the deploy on it).
-F4 = ['abilities=ammunition_recharge', 'capacity_ammo_recharger=0']
+# The F4 button (a supply component that hands out nothing: the framework hangs the deploy on it); no passengers
+# (the crew drives as before: it is not a passenger - HEMTT Supply has none either).
+F4 = ['abilities=ammunition_recharge', 'capacity_ammo_recharger=0', 'people_capacity=0']
 # A recon drone: a swarm scout alone, no corpse, a small blast when it dies (its van packs up) - the bomb drones'
 # death effect, a tenth of their blast.
 DRONE = ['explode_damage=1-2:he30', 'explode_splash_radius=2', 'destroy_effect=destruction_swarm_explosive']
 
 UNITS = [
-    dict(van='Int_recon_van', van_from='Int_guntruck', van_name='Recon Van',
+    dict(van='Int_uav_carrier', van_from='Int_guntruck', van_name='UAV Carrier',
          van_stats=F4 + ['gun_mounts=stryker_machine_gun,uav_kit_mount', f'ammunition=ammo_50cal:2000,{KIT}:{KITS}'],
          squad='Int_recon_uav', squad_name='Recon UAV', drone='Int_recon_drone',
          drone_stats=DRONE + ['max_velocity=9', 'max_walk_velocity=9']),
-    dict(van='Res_patchwork_van', van_from='Res_van', van_name='Patchwork UAV Van',
-         van_stats=F4 + ['gun_mounts=res_van_passenger_gun1,res_van_passenger_gun2,res_van_passenger_gun3,'
-                         'res_van_passenger_gun4,res_van_passenger_gun5,uav_kit_mount_van',
+    dict(van='Res_patchwork_uav_carrier', van_from='Res_van', van_name='Patchwork UAV Carrier',
+         van_stats=F4 + ['gun_mounts=uav_kit_mount_van',  # no passengers to man the passenger mounts
                          f'ammunition={KIT}:{KITS}'],
          squad='Res_patchwork_uav', squad_name='Patchwork UAV', drone='Res_patchwork_drone',
          drone_stats=DRONE + ['max_velocity=6', 'max_walk_velocity=6', 'angle_velocity=1.5',
@@ -97,11 +98,11 @@ SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # fact
 
 # The encyclopedia's articles of the vans (&#10; - a new line, as the game's tables write it).
 ENCYCLOPEDIA = {
-    'Int_recon_van': ('Recon Van', 'Integrators gun truck refitted as a drone carrier.&#10;&#10;Deployed (F4), it keeps '
+    'Int_uav_carrier': ('UAV Carrier', 'Integrators gun truck refitted as a drone carrier.&#10;&#10;Deployed (F4), it keeps '
                       'one recon drone in the air; the drone self-destructs when the van packs up, and a lost drone '
                       'packs the van up. Carries 5 UAV kits, one per drone; the next drone is ready 60 s after one '
                       'dies.'),
-    'Res_patchwork_van': ('Patchwork UAV Van', 'A Resistance van with a recon drone put together from Legion scrap. '
+    'Res_patchwork_uav_carrier': ('Patchwork UAV Carrier', 'A Resistance van with a recon drone put together from Legion scrap. '
                           'Slow, but it flies.&#10;&#10;Deployed (F4), it keeps the drone in the air; the drone '
                           'self-destructs when the van packs up, and a lost drone packs the van up. Carries 5 UAV '
                           'kits, one per drone; the next drone is ready 60 s after one dies.'),
@@ -134,9 +135,9 @@ LAYERS = [
 
 # The vans' F4 look: pictures named with the mod's own prefix (no other mod's file can be in the way), tooltip keys
 # of at most 15 characters (the plugin writes them into the game's string in place).
-PICTURES = 'pwuav'
+PICTURES = 'uavc'
 DRONES_ICON = 'textures/ui/pictures/tech_pic/infantry_icons_big/lgn_drones.dds'
-TIP, TIP_RECALL = 'pwuav_deploy', 'pwuav_recall'
+TIP, TIP_RECALL = 'uavc_deploy', 'uavc_recall'
 LOOK = {
     'spawn_icon': fw.picture_name(f'{PICTURES}_ready.dds'),
     'spawn_icon_cooldown': fw.picture_name(f'{PICTURES}_cooldown.dds'),
@@ -163,9 +164,7 @@ STRINGS = fw.DEFAULT_STRINGS + [
 TEST_TIP, TEST_TIP_RECALL = 'test_launch', 'test_recall'
 TEST_UNITS = [
     dict(van='Test_troop_van', van_from='Res_van', van_name='Test Troop Van (untethered)',
-         van_stats=F4 + ['gun_mounts=res_van_passenger_gun1,res_van_passenger_gun2,res_van_passenger_gun3,'
-                         'res_van_passenger_gun4,res_van_passenger_gun5,uav_kit_mount_van',
-                         f'ammunition={KIT}:{KITS}'],
+         van_stats=F4 + ['gun_mounts=uav_kit_mount_van', f'ammunition={KIT}:{KITS}'],
          columns=f'spawn_squad=Res_marksmans;spawn_ammo={KIT};spawn_cooldown=30;spawn_tethered=false;'
                  f'spawn_count=2;spawn_tooltip={TEST_TIP};spawn_tooltip_recall={TEST_TIP_RECALL}'),
 ]
@@ -179,10 +178,11 @@ TEST_STRINGS = [
 ]
 
 MOD_JSON = {
-    'name': 'Patchwork UAV',
-    'description': ('Two vans that keep a recon drone in the air while deployed (F4): the Integrators\' Recon Van '
-                    'and the Resistance\'s Patchwork UAV Van, a drone put together from Legion scrap. Each carries '
-                    f'{KITS} UAV kits, one per drone. Requires the Spawn Framework (plugin and mod).'),
+    'name': 'UAV Carriers',
+    'description': ('Two UAV carriers that keep a recon drone in the air while deployed (F4): the Integrators\' UAV '
+                    'Carrier and the Resistance\'s Patchwork UAV Carrier, its drone put together from Legion scrap. '
+                    f'Each carries {KITS} UAV kits, one per drone, and no passengers. Requires the Spawn Framework '
+                    '(plugin and mod).'),
     'icon': 'basis/mod_icon.dds',
 }
 
@@ -204,7 +204,7 @@ def clone_rows(src, out, rows):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--game', required=True)
-    ap.add_argument('--out', required=True, help='the mod folder, e.g. .../mods/Patchwork_UAV (recreated)')
+    ap.add_argument('--out', required=True, help='the mod folder, e.g. .../mods/UAV_Carriers (recreated)')
     ap.add_argument('--cache', help='where to unpack the game files (default <out>_game_src)')
     ap.add_argument('--version', default='dev')
     ap.add_argument('--test-vehicles', action='store_true', help='add the test vehicles (TEST_UNITS)')
@@ -304,7 +304,7 @@ def main():
     info = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description'])
     with open(os.path.join(a.out, 'mod.json'), 'w', encoding='utf-8') as f:
         json.dump(info, f, indent=4)
-    print(f'Patchwork UAV -> {a.out}')
+    print(f'UAV Carriers -> {a.out}')
 
 
 if __name__ == '__main__':

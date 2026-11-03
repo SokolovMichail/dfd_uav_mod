@@ -6,7 +6,7 @@ writes <out prefix>_ready.dds, _cooldown.dds and _recall.dds - the three picture
 spawn_icon, spawn_icon_cooldown and spawn_icon_recall. <button.dds> - a 76x76 button of the command panel (F4's
 textures/ui/pictures/Main/buttons2/buttons_unpack_n.dds): its frame and background are kept, its own icon painted
 over; <icon.dds> - what goes on the button, e.g. a unit icon (tech_pic/infantry_icons_big/...), cropped to what it
-draws. A mod with an icon of its own to cut out first uses the functions (Patchwork UAV's build does).
+draws. A mod with an icon of its own to cut out first uses the functions (UAV Carriers' build does).
 
 The pictures:
   ready     the button with the icon in the middle, coloured the way the game's timer buttons colour theirs (their
