@@ -4,7 +4,7 @@ files:
     python mod/uav_carriers/build_mod.py --game <game folder> --out <mods/UAV_Carriers> [--cache <dir>] [--version 0.1]
 
 Two UAV carriers that, deployed (F4), keep one recon drone of their own in the air. Each carries 5 UAV kits (an
-ammunition of its own, 200 to restock each) and spends one per drone; the drone dies when its carrier packs up or is
+ammunition of its own, 500 to restock each) and spends one per drone; the drone dies when its carrier packs up or is
 destroyed, and the next one waits 60 s after it. They carry no passengers.
 
 - Integrators: Int_uav_carrier ("UAV Carrier"), on the Integrators' gun truck (Int_guntruck): the smoke launcher is
@@ -47,6 +47,9 @@ import rusty_drone  # noqa: E402
 
 KIT = 'uav_kit'
 KITS = 5
+# A drone is a single-use, fragile scout with no range limit: eyes anywhere without risking anyone, but pricey, and
+# its carrier cannot move while it flies. Its kit's restock cost (the game's: smoke rounds 200).
+KIT_COST = 500
 # The kit's own ammunition pictures (art/kit_icons.py: the drone in the style of the game's, made on the smoke
 # round's) - textures/ui/pictures/Ammunition/uavc_kit[_o, _p, _off, _off_o, _off_p].dds - and its name and
 # description in the ammunition panel (locale/ammunition.xml).
@@ -70,11 +73,11 @@ F4 = ['abilities=ammunition_recharge', 'capacity_ammo_recharger=0', 'people_capa
 DRONE = ['explode_damage=1-2:he30', 'explode_splash_radius=2', 'destroy_effect=destruction_swarm_explosive']
 
 UNITS = [
-    dict(van='Int_uav_carrier', van_from='Int_guntruck', van_name='UAV Carrier',
+    dict(van='Int_uav_carrier', van_from='Int_guntruck', van_name='UAV Carrier', faction='integrators',
          van_stats=F4 + ['gun_mounts=stryker_machine_gun,uav_kit_mount', f'ammunition=ammo_50cal:2000,{KIT}:{KITS}'],
          squad='Int_recon_uav', squad_name='Recon UAV', drone='Int_recon_drone',
          drone_stats=DRONE + ['max_velocity=9', 'max_walk_velocity=9']),
-    dict(van='Res_patchwork_uav_carrier', van_from='Res_van', van_name='Patchwork UAV Carrier',
+    dict(van='Res_patchwork_uav_carrier', van_from='Res_van', van_name='Patchwork UAV Carrier', faction='resistance',
          van_stats=F4 + ['gun_mounts=uav_kit_mount_van',  # no passengers to man the passenger mounts
                          f'ammunition={KIT}:{KITS}'],
          squad='Res_patchwork_uav', squad_name='Patchwork UAV', drone='Res_patchwork_drone',
@@ -84,7 +87,7 @@ UNITS = [
 
 # table -> [(new row, the row it copies, its changes)], applied in this order
 ROWS = {
-    'ammunition': [(KIT, 'heavy_sg', ['cost_recharge=200', 'ammo_class=none', 'comments=UAV kit (Spawn Framework)',
+    'ammunition': [(KIT, 'heavy_sg', [f'cost_recharge={KIT_COST}', 'ammo_class=none', 'comments=UAV kit (Spawn Framework)',
                                       f'image=Ammunition/{KIT_PICTURE}', f'image_grayed=Ammunition/{KIT_PICTURE}_off',
                                       f'image_denied=Ammunition/{KIT_PICTURE}_off'])],
     'guns': [('uav_kit_launcher', 'gl_m6', [f'ammunition={KIT}:1', 'comment=UAV kit launcher (Spawn Framework)'])],
@@ -96,17 +99,34 @@ ROWS = {
 }
 SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # faction -> the row the vans go after
 
-# The encyclopedia's articles of the vans (&#10; - a new line, as the game's tables write it).
+# The encyclopedia's articles of the vans and their drones, in every layer's encyclopedia (&#10; - a new line, as the
+# game's tables write it). The drones' rows are copies of the swarm scouts' (Lgn_swarm), of their carrier's faction,
+# with a picture of one drone (ENCYCLOPEDIA_PICTURE).
+COSTS = (f'Each drone takes one UAV kit; the carrier holds {KITS}, and a kit costs {KIT_COST} to restock. '
+         'The next drone is ready 60 s after the last one is gone.')
 ENCYCLOPEDIA = {
-    'Int_uav_carrier': ('UAV Carrier', 'Integrators gun truck refitted as a drone carrier.&#10;&#10;Deployed (F4), it keeps '
-                      'one recon drone in the air; the drone self-destructs when the van packs up, and a lost drone '
-                      'packs the van up. Carries 5 UAV kits, one per drone; the next drone is ready 60 s after one '
-                      'dies.'),
-    'Res_patchwork_uav_carrier': ('Patchwork UAV Carrier', 'A Resistance van with a recon drone put together from Legion scrap. '
-                          'Slow, but it flies.&#10;&#10;Deployed (F4), it keeps the drone in the air; the drone '
-                          'self-destructs when the van packs up, and a lost drone packs the van up. Carries 5 UAV '
-                          'kits, one per drone; the next drone is ready 60 s after one dies.'),
+    'Int_uav_carrier': ('UAV Carrier', 'Integrators gun truck refitted as a drone carrier.&#10;&#10;Deployed (F4), it '
+                        'keeps one recon drone in the air: eyes anywhere on the map, with no soldier at risk. While '
+                        'it flies the drone, the truck cannot move; the drone self-destructs when the truck packs up, '
+                        'and a lost drone packs the truck up.&#10;&#10;' + COSTS),
+    'Res_patchwork_uav_carrier': ('Patchwork UAV Carrier', 'A Resistance van with a recon drone put together from '
+                                  'Legion scrap. Slow, but it flies.&#10;&#10;Deployed (F4), it keeps the drone in '
+                                  'the air: eyes anywhere on the map, with no fighter at risk. While it flies the '
+                                  'drone, the van cannot move; the drone self-destructs when the van packs up, and a '
+                                  'lost drone packs the van up.&#10;&#10;' + COSTS),
+    'Int_recon_uav': ('Recon UAV', 'A Legion swarm scout, rebuilt by the Integrators to answer to them alone.&#10;&#10;'
+                      'It has no range limit and no gun: it goes where no soldier should, and sees for them. It is '
+                      'fragile and single-use - it self-destructs when its carrier packs up - and every drone costs '
+                      'a pricey UAV kit.&#10;&#10;Only a deployed UAV Carrier can launch it.'),
+    'Res_patchwork_uav': ('Patchwork UAV', 'Ten wrecked Legion scouts went in, one working drone came out. The '
+                          'mechanics who built it credit the welding. The one who burned incense over it and prayed '
+                          'to the Omnissiah credits the Machine Spirit, and nobody has dared to argue since it took '
+                          'off.&#10;&#10;Slow and rusty, its eye glowing green, it has no range limit and no gun: it '
+                          'goes where no fighter should, and sees for them. It is fragile and single-use - it '
+                          'self-destructs when its carrier packs up - and every drone costs a pricey UAV kit.'
+                          '&#10;&#10;Only a deployed Patchwork UAV Carrier can launch it.'),
 }
+ENCYCLOPEDIA_PICTURE = 'uavc_drone'  # textures/ui/pictures/tech_pic/infantry_icons_big/uavc_drone.dds
 
 # Where the vans are, one of each in every shop, as HEMTT Spares has it: the base game's campaign shops (not the
 # test_shop_* and the demo's resistance_dlc_shop_demo), the first zone of the Resistance DLC's uprising, every shop
@@ -187,6 +207,15 @@ MOD_JSON = {
 }
 
 
+def encyclopedia_picture(drone, size, margin=6):
+    """One drone, as large as it fits, centred on a transparent picture of the swarm icon's size."""
+    k = min((size[0] - 2 * margin) / drone.width, (size[1] - 2 * margin) / drone.height)
+    one = drone.resize((round(drone.width * k), round(drone.height * k)), Image.LANCZOS)
+    out = Image.new('RGBA', size, (0, 0, 0, 0))
+    out.alpha_composite(one, ((size[0] - one.width) // 2, (size[1] - one.height) // 2))
+    return out
+
+
 def tool(script, *args):
     """Run a script from mod/tools with this Python; an error stops the build."""
     env = dict(os.environ, PYTHONIOENCODING='utf-8')
@@ -238,13 +267,15 @@ def main():
                 os.replace(shops + '.tmp', shops)
         encyclopedia = os.path.join(species, f'{L["encyclopedia"]}.xml')
         clone_rows(S(L['layer'], f'scripts/species/{L["encyclopedia"]}.xml'), encyclopedia,
-                   [(u['van'], u['van_from'], ['presets=']) for u in UNITS])  # not the gun trucks' variants
+                   [(u['van'], u['van_from'], ['presets=']) for u in UNITS] +  # not the gun trucks' variants
+                   [(u['squad'], 'Lgn_swarm', ['presets=', f'faction={u["faction"]}',
+                                               f'image=infantry_icons_big/{ENCYCLOPEDIA_PICTURE}']) for u in UNITS])
         loc = os.path.join(a.out, *L['loc_dir'].split('/'))
         os.makedirs(loc, exist_ok=True)
         articles = os.path.join(loc, f'{L["encyclopedia_loc"]}.xml')
         clone_rows(S(L['loc_layer'], f'locale/{L["encyclopedia_loc"]}.xml'), articles,
-                   [(u['van'], u['van_from'], [f'name={ENCYCLOPEDIA[u["van"]][0]}',
-                                               f'description={ENCYCLOPEDIA[u["van"]][1]}']) for u in UNITS])
+                   [(key, row, [f'name={ENCYCLOPEDIA[key][0]}', f'description={ENCYCLOPEDIA[key][1]}'])
+                    for u in UNITS for key, row in ((u['van'], u['van_from']), (u['squad'], 'Lgn_swarm'))])
 
     print('== skirmish armies')
     edits, anchors = [], dict(SKIRMISH)
@@ -263,6 +294,12 @@ def main():
     os.makedirs(pictures)
     drone = front_drone(buttons.load(S('base', DRONES_ICON))[0])
     buttons.make(S('base', fw.UNPACK_BUTTON), drone, os.path.join(pictures, PICTURES))
+
+    print('== the drones\' encyclopedia picture')
+    tech = os.path.join(a.out, 'basis', 'textures', 'ui', 'pictures', 'tech_pic', 'infantry_icons_big')
+    os.makedirs(tech)
+    drones, header = buttons.load(S('base', DRONES_ICON))
+    buttons.save(os.path.join(tech, f'{ENCYCLOPEDIA_PICTURE}.dds'), encyclopedia_picture(drone, drones.size), header)
 
     print('== the UAV kit\'s pictures')
     ammo_pictures = os.path.join(a.out, 'basis', 'textures', 'ui', 'pictures', 'Ammunition')

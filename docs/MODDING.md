@@ -88,7 +88,7 @@ The kit is an ammunition row of your own, so the player sees it in the vehicle's
 vehicles restock it (`cost_recharge` - what one kit costs). Give it its own `image` (and `image_grayed`,
 `image_denied`) and a `locale/ammunition.xml` row - name and description - so it does not pass for another round.
 
-UAV Carriers' `uav_kit` is a copy of the smoke round `heavy_sg` with `cost_recharge = 200` and `ammo_class = none`
+UAV Carriers' `uav_kit` is a copy of the smoke round `heavy_sg` with `cost_recharge = 500` and `ammo_class = none`
 (nothing is a target for it, so its launcher never fires). The launcher (`guns.xml` `uav_kit_launcher`, a copy of
 `gl_m6` with `ammunition = uav_kit:1`) sits in a mount of the vehicle (`gun_mounts.xml`, a copy of one of the
 vehicle's own mounts with `gun = uav_kit_launcher`).
@@ -193,6 +193,7 @@ when it dies (`explode_damage = 1-2:he30` over 2 m, `destroy_effect = destructio
 speed: 9 for the UAV Carrier's, 6 for the Patchwork one's, which also has a rusty model of its own
 (`mesh = uavc_drone`).
 
-Plus new names, the kit and its launcher, and shop entries: one of each carrier in every shop of the main campaign
-and the Canada DLC, the first zone of the Resistance DLC's uprising, and the Resistance and Founders skirmish
+Plus new names, the kit and its launcher, encyclopedia articles for both carriers and both drones (the drones' as
+squads of their carrier's faction, with a one-drone picture, `tech_pic\infantry_icons_big\uavc_drone.dds`), and shop
+entries: one of each carrier in every shop of the main campaign and the Canada DLC, the first zone of the Resistance DLC's uprising, and the Resistance and Founders skirmish
 armies. The rows go into the base game's tables and both DLCs'. Open `mods\UAV_Carriers` to see every file.

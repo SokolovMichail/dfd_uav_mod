@@ -8,7 +8,7 @@ next to it - the **Spawn Framework** (a plugin and a small game mod, shared by e
 - Resistance's **Patchwork UAV Carrier** (on their van) - one working drone put together from ten wrecked Legion
   scouts: slow, rusty, its eye glowing green.
 
-Each carrier carries 5 UAV kits (200 to restock each) and spends one per drone, and no passengers. One drone per
+Each carrier carries 5 UAV kits (500 to restock each) and spends one per drone, and no passengers. One drone per
 carrier at a time; it dies when the carrier packs up or is destroyed, and the next one waits 60 s. They are in every
 shop of the main campaign and the Canada DLC, the first zone of the Resistance DLC's uprising, and the Resistance and
 Founders skirmish armies.
