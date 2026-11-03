@@ -125,11 +125,9 @@ ENCYCLOPEDIA = {
         'single soldier. When its carrier packs up, the drone destroys itself rather than be captured.',
         'Can only be launched by a deployed Recon UAV Carrier.'])),
     'Res_patchwork_uav': ('Patchwork UAV', NL.join([
-        'A reconnaissance drone assembled by Movement mechanics from Swarm Scouts wrecked on the battlefield - it '
-        'takes about ten of them to make one that flies.',
-        'Reflashed to serve the Movement, the drone is slower than the original, rusty, and its eye glows green. '
-        'The mechanics credit good welding for it flying at all. One of them also prays to the Omnissiah before '
-        'every launch, just in case.',
+        'A reconnaissance drone assembled by Movement mechanics from Swarm Scouts wrecked on the battlefield, odd '
+        'spare parts and zealous prayers to the Omnissiah.',
+        'Reflashed to serve the Movement, the drone is slower than the original, rusty, and its eye glows green.',
         'Like the Swarm Scout, the drone is unarmed and fragile, but its link has no range limit. When its carrier '
         'packs up, the drone destroys itself rather than fall back into Legion hands.',
         'Can only be launched by a deployed Patchwork UAV Carrier.'])),
