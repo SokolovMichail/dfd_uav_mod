@@ -50,14 +50,14 @@ PATCHES_NOTE = ('\nDefianceLoader build: needs DefianceLoader\'s table merge - [
                 'settings.ini.')
 
 
-def to_patches(mod_dir, own):
+def to_patches(mod_dir, own, columns=None):
     """Replace each table of `own` (its path -> the sysnames of the mod's own rows) with a patch of those rows,
-    named for the mod folder."""
+    named for the mod folder. columns: path -> the only columns to keep (rows the stock table has: shops)."""
     import os
     from table_patch import make_patch
     mod = os.path.basename(os.path.normpath(mod_dir)).lower()
     for path, rows in own.items():
-        make_patch(path, path[:-len('.xml')] + f'.{mod}.patch.xml', rows)
+        make_patch(path, path[:-len('.xml')] + f'.{mod}.patch.xml', rows, (columns or {}).get(path))
         os.remove(path)
 
 
