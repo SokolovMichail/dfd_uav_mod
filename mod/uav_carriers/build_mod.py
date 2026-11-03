@@ -102,32 +102,36 @@ SKIRMISH = {'resistance': 'Res_van', 'founders': 'Fnd_HEMTT_ammunition'}  # fact
 # The encyclopedia's articles of the vans and their drones, in every layer's encyclopedia (&#10; - a new line, as the
 # game's tables write it). The drones' rows are copies of the swarm scouts' (Lgn_swarm), of their carrier's faction,
 # with a picture of one drone (ENCYCLOPEDIA_PICTURE).
-COSTS = (f'Each drone takes one UAV kit; the carrier holds {KITS}, and a kit costs {KIT_COST} to restock. '
-         'The next drone is ready 60 s after the last one is gone.')
+# In the game's own style: a few short paragraphs of who built it and why, then what it can do; no numbers.
+NL = '&#10;&#10;'
 ENCYCLOPEDIA = {
-    'Int_uav_carrier': ('UAV Carrier', 'Integrators gun truck refitted as a drone carrier.&#10;&#10;Deployed (F4), it '
-                        'keeps one recon drone in the air: eyes anywhere on the map, with no soldier at risk. While '
-                        'it flies the drone, the truck cannot move; the drone self-destructs when the truck packs up, '
-                        'and a lost drone packs the truck up.&#10;&#10;' + COSTS),
-    'Res_patchwork_uav_carrier': ('Patchwork UAV Carrier', 'A Resistance van with a recon drone put together from '
-                                  'Legion scrap. Slow, but it flies.&#10;&#10;Deployed (F4), it keeps the drone in '
-                                  'the air: eyes anywhere on the map, with no fighter at risk. While it flies the '
-                                  'drone, the van cannot move; the drone self-destructs when the van packs up, and a '
-                                  'lost drone packs the van up.&#10;&#10;' + COSTS),
-    'Int_recon_uav': ('Recon UAV', 'A Legion swarm scout, rebuilt by the Integrators to answer to them alone.&#10;&#10;'
-                      'It has no range limit and no gun: it goes where no soldier should, and sees for them. It is '
-                      'fragile and single-use - it self-destructs when its carrier packs up - and every drone costs '
-                      'a pricey UAV kit.&#10;&#10;Only a deployed UAV Carrier can launch it.'),
-    # The operating instructions: DFDRepairMod docs/Next_Mods_Handoff.md, "For the Nexus descriptions".
-    'Res_patchwork_uav': ('Patchwork UAV', 'Ten wrecked Legion scouts went in, one working drone came out. Put '
-                          'together from scrap. Flies. Sometimes.&#10;&#10;Operating instructions:&#10;'
-                          '1. Deploy the van.&#10;2. Recite the Tech-Litany.&#10;3. Pray to the Omnissiah.&#10;'
-                          '4. If the drone takes off, the blessing is granted. If not, repeat step 2 louder.'
-                          '&#10;&#10;Warranty void for drones that revert to Legion factory settings.'
-                          '&#10;&#10;Slow and rusty, its eye glowing green, it has no range limit and no gun: it '
-                          'goes where no fighter should, and sees for them. It is fragile and single-use - it '
-                          'self-destructs when its carrier packs up - and every drone costs a pricey UAV kit.'
-                          '&#10;&#10;Only a deployed Patchwork UAV Carrier can launch it.'),
+    'Int_uav_carrier': ('UAV Carrier', NL.join([
+        'Light Integrators gun truck, refitted to carry and control a reconnaissance drone.',
+        'The fighting compartment now holds a drone launcher and a control station. The link takes all the power '
+        'the electric engine can spare, so the truck stays in place while its drone is in the air.',
+        'Can be quickly deployed to launch its drone. Each drone takes a UAV kit, and kits are expensive: every '
+        'launch should count.'])),
+    'Res_patchwork_uav_carrier': ('Patchwork UAV Carrier', NL.join([
+        'Movement van with its passenger compartment given over to a drone launcher and a control station.',
+        'The operator needs the van standing still and every wire in it working, so the van stays in place while '
+        'its drone is in the air.',
+        'Can be quickly deployed to launch its drone. Each drone takes a UAV kit, and spare parts are scarce: every '
+        'launch should count.'])),
+    'Int_recon_uav': ('Recon UAV', NL.join([
+        'A reconnaissance drone based on the Swarm Scout. Integrators engineers took the Legion schematics, removed '
+        'everything they did not trust and rebuilt the drone to answer to its carrier alone.',
+        'The drone is unarmed and fragile, but its link has no range limit: it can look anywhere without risking a '
+        'single soldier. When its carrier packs up, the drone destroys itself rather than be captured.',
+        'Can only be launched by a deployed UAV Carrier.'])),
+    'Res_patchwork_uav': ('Patchwork UAV', NL.join([
+        'Ten wrecked Legion scouts went in, one working drone came out. Movement mechanics collected the parts on '
+        'the battlefield and reflashed the drone to serve the Movement. It is slow and rusty, and its eye glows '
+        'green, but it flies. Usually.',
+        'Opinions differ on why. The mechanics credit the welding. One of them reads the Tech-Litany and prays to '
+        'the Omnissiah before every launch, and since the drone keeps flying, nobody has dared to stop them.',
+        'Like the Swarm Scout, the drone is unarmed and fragile, but its link has no range limit. When its carrier '
+        'packs up, the drone destroys itself: better that than going back to Legion factory settings.',
+        'Can only be launched by a deployed Patchwork UAV Carrier.'])),
 }
 ENCYCLOPEDIA_PICTURE = 'uavc_drone'  # textures/ui/pictures/tech_pic/infantry_icons_big/uavc_drone.dds
 
