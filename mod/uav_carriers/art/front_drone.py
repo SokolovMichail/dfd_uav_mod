@@ -1,4 +1,4 @@
-"""Patchwork UAV's F4 icon: one drone, cut out of the swarm drones' unit icon (tech_pic/infantry_icons_big/
+"""UAV Carriers' F4 icon: one drone, cut out of the swarm drones' unit icon (tech_pic/infantry_icons_big/
 lgn_drones - three drones in the style of the panel's icons: light blue, dark outline). The front drone is drawn whole,
 over the other two: its rows above FRONT_TOP_ROWS are its own; below them only its tail, the columns FRONT_TAIL. Its
 outline: OUTLINE pixels around its fill, from the picture. The framework's art/buttons.py makes the F4 pictures of it.

@@ -457,8 +457,8 @@ const char* kTable = R"(<?xml version="1.0"?>
    <Row><Cell><Data ss:Type="String">vehicles</Data></Cell></Row>
    <Row ss:Index="3"><Cell><Data ss:Type="String">sysname</Data></Cell><Cell><Data ss:Type="String">mass</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">spawn_squad</Data></Cell><Cell><Data ss:Type="String">spawn_ammo</Data></Cell><Cell><Data ss:Type="String">spawn_cooldown</Data></Cell></Row>
    <Row><Cell><Data ss:Type="String">Res_van</Data></Cell><Cell><Data ss:Type="Number">2500</Data></Cell></Row>
-   <Row><Cell><Data ss:Type="String">Res_patchwork_van</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">Res_patchwork_uav</Data></Cell><Cell><Data ss:Type="String">uav_kit</Data></Cell><Cell><Data ss:Type="Number">45</Data></Cell></Row>
-   <Row><Cell><Data ss:Type="String">Int_recon_van</Data></Cell><Cell ss:Index="4"><Data ss:Type="String"><Font>Int_recon_uav</Font></Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">Res_patchwork_uav_carrier</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">Res_patchwork_uav</Data></Cell><Cell><Data ss:Type="String">uav_kit</Data></Cell><Cell><Data ss:Type="Number">45</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">Int_uav_carrier</Data></Cell><Cell ss:Index="4"><Data ss:Type="String"><Font>Int_recon_uav</Font></Data></Cell></Row>
    <Row><Cell><Data ss:Type="String">#Res_old_van</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">Lgn_swarm</Data></Cell></Row>
    <Row/>
    <Row><Cell ss:Index="1"/><Cell><Data ss:Type="String">no sysname</Data></Cell></Row>
@@ -472,34 +472,34 @@ const char* kTable = R"(<?xml version="1.0"?>
 TEST_CASE("the framework's columns are read from a vehicle table") {
     SpawnTable t;
     CHECK(readSpawnColumns(kTable, t) == 2);
-    REQUIRE(t.count("Res_patchwork_van") == 1);
-    CHECK(t["Res_patchwork_van"].squad == "Res_patchwork_uav");
-    CHECK(t["Res_patchwork_van"].ammo == "uav_kit");
-    CHECK(t["Res_patchwork_van"].cooldown == doctest::Approx(45));
-    REQUIRE(t.count("Int_recon_van") == 1);
-    CHECK(t["Int_recon_van"].squad == "Int_recon_uav");  // formatting tags inside <Data> are dropped
-    CHECK(t["Int_recon_van"].ammo.empty());
-    CHECK(t["Int_recon_van"].cooldown == doctest::Approx(kDefaultCooldown));
+    REQUIRE(t.count("Res_patchwork_uav_carrier") == 1);
+    CHECK(t["Res_patchwork_uav_carrier"].squad == "Res_patchwork_uav");
+    CHECK(t["Res_patchwork_uav_carrier"].ammo == "uav_kit");
+    CHECK(t["Res_patchwork_uav_carrier"].cooldown == doctest::Approx(45));
+    REQUIRE(t.count("Int_uav_carrier") == 1);
+    CHECK(t["Int_uav_carrier"].squad == "Int_recon_uav");  // formatting tags inside <Data> are dropped
+    CHECK(t["Int_uav_carrier"].ammo.empty());
+    CHECK(t["Int_uav_carrier"].cooldown == doctest::Approx(kDefaultCooldown));
     CHECK(t.count("Res_van") == 0);       // no spawn_squad
     CHECK(t.count("#Res_old_van") == 0);  // a comment row
-    CHECK(t["Res_patchwork_van"].icon.empty());  // no look columns: the defaults
-    CHECK(t["Res_patchwork_van"].tooltip.empty());
+    CHECK(t["Res_patchwork_uav_carrier"].icon.empty());  // no look columns: the defaults
+    CHECK(t["Res_patchwork_uav_carrier"].tooltip.empty());
 }
 
 TEST_CASE("each vehicle's own F4 pictures and tooltips are read; empty cells leave the defaults") {
     const char* table = R"(<Workbook><Worksheet><Table>
    <Row><Cell><Data>sysname</Data></Cell><Cell><Data>spawn_squad</Data></Cell><Cell><Data>spawn_icon</Data></Cell><Cell><Data>spawn_icon_cooldown</Data></Cell><Cell><Data>spawn_icon_recall</Data></Cell><Cell><Data>spawn_tooltip</Data></Cell><Cell><Data>spawn_tooltip_recall</Data></Cell></Row>
-   <Row><Cell><Data>Res_patchwork_van</Data></Cell><Cell><Data>Res_patchwork_uav</Data></Cell><Cell><Data>main\buttons2\pwuav_ready.dds</Data></Cell><Cell><Data>main\buttons2\pwuav_cooldown.dds</Data></Cell><Cell><Data>main\buttons2\pwuav_recall.dds</Data></Cell><Cell><Data>pwuav_deploy</Data></Cell><Cell><Data>pwuav_recall</Data></Cell></Row>
+   <Row><Cell><Data>Res_patchwork_uav_carrier</Data></Cell><Cell><Data>Res_patchwork_uav</Data></Cell><Cell><Data>main\buttons2\uavc_ready.dds</Data></Cell><Cell><Data>main\buttons2\uavc_cooldown.dds</Data></Cell><Cell><Data>main\buttons2\uavc_recall.dds</Data></Cell><Cell><Data>uavc_deploy</Data></Cell><Cell><Data>uavc_recall</Data></Cell></Row>
    <Row><Cell><Data>Mortar_truck</Data></Cell><Cell><Data>Res_mortar_team</Data></Cell><Cell ss:Index="6"><Data>mortar_deploy</Data></Cell></Row>
   </Table></Worksheet></Workbook>)";
     SpawnTable t;
     CHECK(readSpawnColumns(table, t) == 2);
-    const SpawnConfig& uav = t["Res_patchwork_van"];
-    CHECK(uav.icon == "main\\buttons2\\pwuav_ready.dds");
-    CHECK(uav.iconCooldown == "main\\buttons2\\pwuav_cooldown.dds");
-    CHECK(uav.iconRecall == "main\\buttons2\\pwuav_recall.dds");
-    CHECK(uav.tooltip == "pwuav_deploy");
-    CHECK(uav.tooltipRecall == "pwuav_recall");
+    const SpawnConfig& uav = t["Res_patchwork_uav_carrier"];
+    CHECK(uav.icon == "main\\buttons2\\uavc_ready.dds");
+    CHECK(uav.iconCooldown == "main\\buttons2\\uavc_cooldown.dds");
+    CHECK(uav.iconRecall == "main\\buttons2\\uavc_recall.dds");
+    CHECK(uav.tooltip == "uavc_deploy");
+    CHECK(uav.tooltipRecall == "uavc_recall");
     const SpawnConfig& mortar = t["Mortar_truck"];
     CHECK(mortar.icon.empty());
     CHECK(mortar.iconRecall.empty());
