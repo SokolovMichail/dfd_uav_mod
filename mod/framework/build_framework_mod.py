@@ -1,7 +1,7 @@
 """Builds the Spawn Framework mod (mods\\Spawn_Framework) from the installed game's current files:
 
     python mod/framework/build_framework_mod.py --game <game folder> --out <mods/Spawn_Framework> [--cache <dir>]
-                                                [--version 0.1]
+                                                [--version 1.0]
 
 The game-side half of the Spawn Framework, installed once with the plugin and shared by every mod made on it
 (framework.py): F4's layout with the framework's two progress bars, and the default F4 pictures - the generic rifle

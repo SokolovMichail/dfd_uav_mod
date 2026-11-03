@@ -44,7 +44,7 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
      DefianceLoader plugin stays off and the standalone one runs. To switch, uninstall the other build first
      (see UNINSTALL).
 
-   --- 1. UAV_Carriers_v0.1.zip - the full mod, standalone (recommended if you don't use DefianceLoader) ---
+   --- 1. UAV_Carriers_v1.0.zip - the full mod, standalone (recommended if you don't use DefianceLoader) ---
    1. Extract the archive into the game folder. Allow it to replace files if asked.
    2. Check that you now have:
         mods\Spawn_Framework\...
@@ -58,7 +58,7 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
    5. Check that the plugin runs (see CHECK).
    Using Dark Fate Trainer? See "Standalone build and Dark Fate Trainer" below before step 1.
 
-   --- 2. UAV_Carriers_DefianceLoader_v0.1.zip - the full mod, as a DefianceLoader plugin ---
+   --- 2. UAV_Carriers_DefianceLoader_v1.0.zip - the full mod, as a DefianceLoader plugin ---
    1. Install DefianceLoader first, following its own instructions, and make sure the game starts with it.
    2. Extract the archive into the game folder. Allow it to replace files if asked.
    3. Check that you now have:
@@ -75,7 +75,7 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
    6. Check that the plugin runs (see CHECK).
    This build does not use bin\winhttp.dll, so it does not touch Dark Fate Trainer's files.
 
-   --- 3. SpawnFramework_v0.1.zip - the framework only, standalone ---
+   --- 3. SpawnFramework_v1.0.zip - the framework only, standalone ---
    For mod makers, or for a mod built on the framework that asks you to install it. Adds no vehicles.
    1. Extract the archive into the game folder. Allow it to replace files if asked.
    2. Check that you now have:
@@ -86,7 +86,7 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
    4. Check that the plugin runs (see CHECK).
    Using Dark Fate Trainer? See "Standalone build and Dark Fate Trainer" below before step 1.
 
-   --- 4. SpawnFramework_DefianceLoader_v0.1.zip - the framework only, as a DefianceLoader plugin ---
+   --- 4. SpawnFramework_DefianceLoader_v1.0.zip - the framework only, as a DefianceLoader plugin ---
    For mod makers, or for a mod built on the framework that asks you to install it. Adds no vehicles.
    1. Install DefianceLoader first, following its own instructions, and make sure the game starts with it.
    2. Extract the archive into the game folder. Allow it to replace files if asked.

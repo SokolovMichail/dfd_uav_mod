@@ -25,13 +25,16 @@ loader, `common/patch.h` and `common/guard.h`, `re/` and `mod/tools/`.
 
 | Folder | |
 |---|---|
-| `plugins/spawn/core/` | the rules (one squad per vehicle, kits, cooldown) and reading the framework's table columns - no Windows, no game memory |
+| `plugins/spawn/core/` | the rules (tethered and untethered vehicles, kits, cooldowns, saved games) and reading the framework's table columns - no Windows, no game memory |
 | `plugins/spawn/logic_dll/` | the binding to today's `logic.dll`: hooks, engine calls, finding and patching; `standalone.cpp` / `defiance.cpp` - the two builds |
+| `plugins/spawn/game_dll/` | the binding to `game.dll`: F4's cooldown, each vehicle's own F4 pictures and tooltips |
 | `mod/framework/` | the Spawn Framework mod (`build_framework_mod.py`), what mods made on it share (`framework.py`), the F4 picture tool (`art/buttons.py`) |
 | `mod/uav_carriers/` | UAV Carriers (`build_mod.py`) and its drone icon (`art/front_drone.py`) |
 | `mod/tools/` | the table and archive tools both builds use |
 | `plugins/spawn_probe/`, `mod/probe/` | the Phase 0 probe (kept for reference) |
 | `tests/` | `core_test` - the rules through a test port |
+| `re/` | the disassembly tools the engine was studied with ([re/README.md](re/README.md)) |
+| `tools/` | `gen_winhttp_proxy.py` - the standalone loader's export forwarding |
 
 ## Build
 
@@ -49,11 +52,12 @@ cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug
 cmake --build cmake-build-debug --target deploy
 ```
 
-`deploy` (the game must be closed) installs `bin\plugins\SpawnFramework.dll`, `mods\Spawn_Framework` and `mods\UAV_Carriers`, and removes
-the probe. It leaves `bin\winhttp.dll` as it is: that is already a loader of `bin\plugins\*.dll` (ours from
-DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` installs ours too. Then enable
-**Spawn Framework** and **UAV Carriers** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares). The vans are in the Resistance and
-Founders skirmish armies.
+`deploy` (the game must be closed) installs `bin\plugins\SpawnFramework.dll`, `mods\Spawn_Framework` and
+`mods\UAV_Carriers`, and removes the probe. It leaves `bin\winhttp.dll` as it is: that is already a loader of
+`bin\plugins\*.dll` (ours from DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` installs
+ours too. `deploy_defiance` installs the DefianceLoader build instead (`DefianceLoader\plugins\spawn_framework.dll`
+and its manifest) and removes the standalone `SpawnFramework.dll`. Then enable **Spawn Framework** and
+**UAV Carriers** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares).
 
 Development builds add the framework's test vehicles to UAV Carriers (the CMake option `SPAWN_TEST_VEHICLES`, on
 by default; off for a release): the **Test Troop Van (untethered)** in the Resistance army - two marksman squads per

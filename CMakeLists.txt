@@ -8,7 +8,7 @@ if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "The game is 64-bit: an x86_64 toolchain is needed")
 endif ()
 
-set(MOD_VERSION "0.1")
+set(MOD_VERSION "1.0")
 set(GAME_DIR "C:/Games/Terminator Dark Fate - Defiance" CACHE PATH "The game folder (game files for the mod build, deploy)")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 

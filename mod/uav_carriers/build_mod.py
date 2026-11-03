@@ -1,7 +1,7 @@
 """Builds UAV Carriers (mods\\UAV_Carriers), a mod made on the Spawn Framework, from the installed game's current
 files:
 
-    python mod/uav_carriers/build_mod.py --game <game folder> --out <mods/UAV_Carriers> [--cache <dir>] [--version 0.1]
+    python mod/uav_carriers/build_mod.py --game <game folder> --out <mods/UAV_Carriers> [--cache <dir>] [--version 1.0]
 
 Two UAV carriers that, deployed (F4), keep one recon drone of their own in the air. Each carries 5 UAV kits (an
 ammunition of its own, 200 to restock each) and spends one per drone; the drone dies when its carrier packs up or is
