@@ -1,12 +1,12 @@
-"""Достаёт актуальные версии файлов из установленной игры.
+"""Takes the current versions of files from the installed game.
 
-Игра монтирует слои по порядку (каждый следующий файл заменяет предыдущий целиком):
-    <слой>/basis.pak -> <слой>/patch_NNN*.pak по номеру -> <слой>/basis/ (распакованные файлы)
-Поэтому актуальная версия файла - из последнего источника, где он есть.
+The game mounts layers in order (each later file replaces the earlier one whole):
+    <layer>/basis.pak -> <layer>/patch_NNN*.pak by number -> <layer>/basis/ (unpacked files)
+So the current version of a file is the one from the last source that has it.
 
     from gamefiles import Game
     g = Game(r'C:\\Games\\Terminator Dark Fate - Defiance')
-    g.extract('base', 'scripts/species/cars.xml', 'cache/base')   # -> путь к файлу + откуда он взят
+    g.extract('base', 'scripts/species/cars.xml', 'cache/base')   # -> the file's path + where it came from
 """
 import glob
 import os
@@ -15,7 +15,7 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# слой -> (папка относительно игры, маска архивов, папка распакованных файлов или None)
+# layer -> (folder relative to the game, the archives' mask, the folder of unpacked files or None)
 LAYERS = {
     'base': ('.', '*.pak', 'basis'),
     'resistance': ('dlc/Resistance', '*.pak', 'basis'),
@@ -27,7 +27,7 @@ LAYERS = {
 
 
 def env(name):
-    """Переменная окружения или строка NAME=значение из .env в корне проекта (без подстановок $)."""
+    """An environment variable, or a NAME=value line from .env in the project's root (no $ substitution)."""
     if os.environ.get(name):
         return os.environ[name]
     path = os.path.join(HERE, '..', '..', '.env')
@@ -43,15 +43,15 @@ def env(name):
 
 
 def password():
-    """Пароль архивов игры (bytes) из DFD_PAK_PASSWORD; без него - выход с подсказкой."""
+    """The game archives' password (bytes) from DFD_PAK_PASSWORD; without it - exit with a hint."""
     pw = env('DFD_PAK_PASSWORD')
     if not pw:
-        raise SystemExit('нет пароля архивов игры: задайте DFD_PAK_PASSWORD (переменная окружения или .env в корне проекта)')
+        raise SystemExit('no password for the game archives: set DFD_PAK_PASSWORD (an environment variable or .env in the project root)')
     return pw.encode()
 
 
 def _order(path):
-    """Ключ сортировки архивов слоя в порядке монтирования: basis.pak, затем patch_NNN по номеру, прочие - в конце."""
+    """Sort key for a layer's archives in mount order: basis.pak, then patch_NNN by number, the rest at the end."""
     name = os.path.basename(path).lower()
     if name.startswith('basis'):
         return -1
@@ -62,13 +62,13 @@ def _order(path):
 class Game:
     def __init__(self, root):
         if not os.path.isfile(os.path.join(root, 'bin', 'logic.dll')):
-            raise SystemExit(f'не похоже на папку игры: {root}')
+            raise SystemExit(f'does not look like the game folder: {root}')
         self.root = root
         self._pw = None
         self._index = {}
 
     def _sources(self, layer):
-        """[(архив, {имя в нижнем регистре: имя})] в порядке монтирования."""
+        """[(archive, {lower-case name: name})] in mount order."""
         if layer not in self._index:
             folder, mask, _ = LAYERS[layer]
             paks = sorted(glob.glob(os.path.join(self.root, folder, mask)), key=_order)
@@ -77,7 +77,7 @@ class Game:
         return self._index[layer]
 
     def locate(self, layer, rel):
-        """Откуда брать файл: ('loose', путь) или ('pak', архив, имя внутри)."""
+        """Where to take the file from: ('loose', path) or ('pak', archive, name inside)."""
         folder, _, loose = LAYERS[layer]
         if loose:
             p = os.path.join(self.root, folder, loose, rel)
@@ -88,11 +88,11 @@ class Game:
             if rel.lower() in names:
                 found = ('pak', pak, names[rel.lower()])
         if not found:
-            raise SystemExit(f'в слое {layer} нет файла {rel}')
+            raise SystemExit(f'layer {layer} has no file {rel}')
         return found
 
     def extract(self, layer, rel, out_root):
-        """Копирует актуальную версию в out_root/rel. Возвращает (путь, описание источника)."""
+        """Copies the current version to out_root/rel. Returns (path, description of the source)."""
         src = self.locate(layer, rel)
         dst = os.path.join(out_root, rel)
         os.makedirs(os.path.dirname(dst), exist_ok=True)

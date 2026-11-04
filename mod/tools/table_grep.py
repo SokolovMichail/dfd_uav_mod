@@ -1,9 +1,9 @@
-"""Поиск по таблицам игры (Excel-XML): python mod/tools/table_grep.py <regex> <file.xml>... - заголовки и ячейки, где есть совпадение."""
+"""Search the game's tables (Excel XML): python mod/tools/table_grep.py <regex> <file.xml>... - the headers and the cells that match."""
 import sys, re, xml.etree.ElementTree as ET
 NS={'ss':'urn:schemas-microsoft-com:office:spreadsheet'}
 A='{urn:schemas-microsoft-com:office:spreadsheet}'
 def sheets(path):
-    """Листы файла Excel-XML: (имя листа, строки); строка - {номер колонки: текст} с учётом ss:Index."""
+    """The sheets of an Excel XML file: (sheet name, rows); a row - {column number: text}, ss:Index taken into account."""
     t=ET.parse(path).getroot()
     for ws in t.findall('ss:Worksheet',NS):
         rows=[]

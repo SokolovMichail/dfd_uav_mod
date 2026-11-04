@@ -1,4 +1,4 @@
-# Концы строк в репозитории и рабочей копии - LF (скрипты и генераторы пишут LF)
+# Line endings in the repository and the working copy - LF (the scripts and generators write LF)
 * text=auto eol=lf
 *.dds binary
 *.png binary

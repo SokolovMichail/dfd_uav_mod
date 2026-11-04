@@ -8,6 +8,7 @@ if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "The game is 64-bit: an x86_64 toolchain is needed")
 endif ()
 
+set(MOD_VERSION "1.0")
 set(GAME_DIR "C:/Games/Terminator Dark Fate - Defiance" CACHE PATH "The game folder (game files for the mod build, deploy)")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
@@ -26,6 +27,101 @@ add_library(winhttp SHARED
         loader/winhttp_exports.S
         loader/winhttp.def)
 dfd_dll(winhttp)
+
+# ---- the Spawn Framework plugin
+# core/ - the game-agnostic rules (no Windows, no logic.dll), shared by the plugin and the tests;
+# logic_dll/ and game_dll/ - the binding to the current game build, under the crash guard (common/guard.h).
+set(SPAWN_CORE_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/config.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/look.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/mods.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/spawner.cpp")
+set(DFD_GUARD_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/common/guard.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common/guard_x64.S")
+set(SPAWN_SOURCES ${SPAWN_CORE_SOURCES} ${DFD_GUARD_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/engine.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/hooks.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/log.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/port.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/tables.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/game_dll/panel.cpp")
+# uuid: FOLDERID_Documents, for the folder the game keeps mods.json in (tables.cpp)
+function(spawn_plugin target entry)
+    add_library(${target} SHARED ${SPAWN_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/${entry}")
+    dfd_dll(${target})
+    target_compile_definitions(${target} PRIVATE "SPAWN_VERSION=\"${MOD_VERSION}\"")
+    target_link_libraries(${target} PRIVATE uuid)
+endfunction()
+# The standalone DLL (bin\plugins\SpawnFramework.dll, loaded by our winhttp.dll) and the same plugin for
+# DefianceLoader (DefianceLoader\plugins\spawn_framework.dll + spawn_framework.plugin.json, generated with MOD_VERSION).
+spawn_plugin(SpawnFramework standalone.cpp)
+spawn_plugin(spawn_framework defiance.cpp)
+configure_file(plugins/spawn/spawn_framework.plugin.json.in
+        "${CMAKE_CURRENT_BINARY_DIR}/spawn_framework.plugin.json" @ONLY)
+
+# ---- the game mods, built from the game's current files: the Spawn Framework's own (mods\Spawn_Framework - F4's
+# layout and the default pictures, shared by every mod made on the framework) and the example made on it, UAV
+# Carriers (mods\UAV_Carriers)
+set(FRAMEWORK_MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/Spawn_Framework")
+set(MOD_STAGE "${CMAKE_BINARY_DIR}/stage/mods/UAV_Carriers")
+# UAV Carriers with the framework's test vehicles (mod/uav_carriers/build_mod.py TEST_UNITS) - off for a release.
+option(SPAWN_TEST_VEHICLES "Add the Spawn Framework's test vehicles to UAV Carriers" ON)
+set(CARRIERS_TEST_ARGS "")
+if(SPAWN_TEST_VEHICLES)
+    set(CARRIERS_TEST_ARGS --test-vehicles)
+endif()
+add_custom_target(mod
+        COMMAND ${Python3_EXECUTABLE} mod/framework/build_framework_mod.py --game "${GAME_DIR}"
+                --out "${FRAMEWORK_MOD_STAGE}" --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION}
+        COMMAND ${Python3_EXECUTABLE} mod/uav_carriers/build_mod.py --game "${GAME_DIR}" --out "${MOD_STAGE}"
+                --cache "${CMAKE_BINARY_DIR}/stage/_game_src" --version ${MOD_VERSION} ${CARRIERS_TEST_ARGS}
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Build the mods -> ${FRAMEWORK_MOD_STAGE}, ${MOD_STAGE}"
+        USES_TERMINAL VERBATIM)
+
+# ---- deploy: the standalone plugin and the example mod into the game (the game must be closed). Removes the
+# DefianceLoader build of the plugin if it is there (both at once do not work), and the probe. bin\winhttp.dll is
+# left as it is: the game's is already a loader of bin\plugins\*.dll - ours, or another program's (the trainer's).
+# deploy_with_loader - the same plus our loader, bin\winhttp.dll (it replaces the one there).
+# deploy_defiance - the DefianceLoader build instead (DefianceLoader must be installed): spawn_framework.dll and its
+# manifest into DefianceLoader\plugins; removes the standalone bin\plugins\SpawnFramework.dll. Switch between the two
+# with these targets.
+set(DEPLOY_MOD  # shared by all three: the probe out, the mods in
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnProbe.dll" "${GAME_DIR}/bin/plugins/SpawnProbe.ini"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/SpawnProbe"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Spawn_Framework"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${FRAMEWORK_MOD_STAGE}" "${GAME_DIR}/mods/Spawn_Framework"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/Patchwork_UAV"  # UAV Carriers' old name
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${GAME_DIR}/mods/UAV_Carriers"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${MOD_STAGE}" "${GAME_DIR}/mods/UAV_Carriers")
+set(DEPLOY_PLUGIN_AND_MOD
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.dll"
+                "${GAME_DIR}/DefianceLoader/plugins/spawn_framework.plugin.json"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:SpawnFramework> "${GAME_DIR}/bin/plugins/"
+        ${DEPLOY_MOD})
+add_custom_target(deploy
+        ${DEPLOY_PLUGIN_AND_MOD}
+        DEPENDS SpawnFramework mod
+        COMMENT "Install SpawnFramework.dll, mods\\Spawn_Framework and mods\\UAV_Carriers into ${GAME_DIR} (bin\\winhttp.dll left as it is)"
+        VERBATIM)
+add_custom_target(deploy_with_loader
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/bin"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:winhttp> "${GAME_DIR}/bin/"
+        ${DEPLOY_PLUGIN_AND_MOD}
+        DEPENDS winhttp SpawnFramework mod
+        COMMENT "Install winhttp.dll, SpawnFramework.dll, mods\\Spawn_Framework and mods\\UAV_Carriers into ${GAME_DIR}"
+        VERBATIM)
+add_custom_target(deploy_defiance
+        COMMAND ${CMAKE_COMMAND} -E rm -f "${GAME_DIR}/bin/plugins/SpawnFramework.dll"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_DIR}/DefianceLoader/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:spawn_framework>
+                "${CMAKE_CURRENT_BINARY_DIR}/spawn_framework.plugin.json" "${GAME_DIR}/DefianceLoader/plugins/"
+        ${DEPLOY_MOD}
+        DEPENDS spawn_framework mod
+        COMMENT "Install the DefianceLoader plugin spawn_framework.dll, mods\\Spawn_Framework and mods\\UAV_Carriers into ${GAME_DIR}"
+        VERBATIM)
 
 # ---- Phase 0 probe (bin\plugins\SpawnProbe.dll) and its test vehicle (mods\SpawnProbe)
 add_library(SpawnProbe SHARED plugins/spawn_probe/probe.cpp)
@@ -51,3 +147,10 @@ add_custom_target(deploy_probe
         DEPENDS winhttp SpawnProbe probe_mod
         COMMENT "Install SpawnProbe.dll and mods\\SpawnProbe into ${GAME_DIR}"
         VERBATIM)
+
+# ---- tests (tests/): cmake --build <build> && ctest --test-dir <build>
+option(DFD_TESTS "Build the Spawn Framework tests" ON)
+if (DFD_TESTS AND NOT DFD_NESTED_RELEASE)
+    enable_testing()
+    add_subdirectory(tests)
+endif ()

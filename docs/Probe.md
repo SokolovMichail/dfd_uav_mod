@@ -114,3 +114,32 @@ queues each with `0x292d70(0x542360(world), unit)` - the world's kill manager an
 `squads.xml` columns from the game's table storage (it hooks the row lookup to get it) - the way to give
 `cars.xml` the framework's columns. That hook would clash with MoraleStamina under DefianceLoader, so the storage
 must be found another way. Still to do.
+
+## Saved games probe
+
+The framework keeps its vehicles, squads and cooldowns in memory only, keyed by the vehicle's address: after a load
+a deployed vehicle looks new and spawns a second squad, the saved one belongs to nobody. Before designing the fix,
+the plugin (temporary block "saved games probe" in what was then `plugin.cpp`, since removed) logs, all with `probe:`:
+
+- every spawn: the vehicle's and the squad's entity ids;
+- every new world (a mission start or a load), with each remembered id looked up in it - **do ids survive a load?**;
+- for 5 s after it, each spawning vehicle once: id, team, F4's timer and length - **is the cooldown in the save?**;
+- 3 s after it, a scan of entity ids 1..200000: the framework's squads found and how long it took - **can the
+  plugin list the squads of a loaded game?**
+
+Test: van A deployed with its drone out, van B packed up with its cooldown running; save; load that save; then
+restart the game and load it again.
+
+Results (2026-11-02, a save and two loads in one game run):
+
+- **Entity ids survive a load**: the vans and the drone that was out came back with the same ids.
+- **F4's timer and length are saved**: the van on cooldown came back with timer 59 of length 60.
+- Without the fix, the deployed van looked new after the load and spawned a second drone; the saved one belonged to
+  nobody.
+- The scan of ids 1..200000 found the ~29000 entities of a mission in under 16 ms (not needed in the end).
+- A kill check pending while the game was paused ran in the next map and faulted (caught by the guard): the plugin
+  touched the old, deleted map.
+
+The fix (`logic_dll/port.h`, "Saved games"): the plugin forgets everything when the map changes; F4's length holds minus
+the squad's id while the squad is out (the timer, the cooldown left, as before); a vehicle seen for the first time
+after a load takes both back. F4 modes that end are handled on the next update of the same map. The probe is gone.
