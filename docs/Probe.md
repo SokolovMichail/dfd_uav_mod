@@ -119,7 +119,7 @@ must be found another way. Still to do.
 
 The framework keeps its vehicles, squads and cooldowns in memory only, keyed by the vehicle's address: after a load
 a deployed vehicle looks new and spawns a second squad, the saved one belongs to nobody. Before designing the fix,
-the plugin (temporary block "saved games probe" in `plugin.cpp`) logs, all with `probe:`:
+the plugin (temporary block "saved games probe" in what was then `plugin.cpp`, since removed) logs, all with `probe:`:
 
 - every spawn: the vehicle's and the squad's entity ids;
 - every new world (a mission start or a load), with each remembered id looked up in it - **do ids survive a load?**;
@@ -140,6 +140,6 @@ Results (2026-11-02, a save and two loads in one game run):
 - A kill check pending while the game was paused ran in the next map and faulted (caught by the guard): the plugin
   touched the old, deleted map.
 
-The fix (`plugin.cpp`, "Saved games"): the plugin forgets everything when the map changes; F4's length holds minus
+The fix (`logic_dll/port.h`, "Saved games"): the plugin forgets everything when the map changes; F4's length holds minus
 the squad's id while the squad is out (the timer, the cooldown left, as before); a vehicle seen for the first time
 after a load takes both back. F4 modes that end are handled on the next update of the same map. The probe is gone.

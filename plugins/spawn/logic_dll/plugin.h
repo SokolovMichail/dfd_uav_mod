@@ -1,19 +1,34 @@
-// The Spawn Framework bound to today's logic.dll: what is shared by the standalone DLL (standalone.cpp) and the
-// DefianceLoader plugin (defiance.cpp). The rules are in core/ (spawner.h); here - the engine objects they act on,
-// the hooks that feed them, and finding and patching logic.dll.
+// The Spawn Framework bound to today's game: what the standalone DLL (standalone.cpp) and the DefianceLoader plugin
+// (defiance.cpp) share. The rules are in core/ (spawner.h) and never touch the game; everything here is the adapter.
 //
-// How it works in logic.dll (GOG 1.09.1221; the plugin finds everything by RTTI and byte patterns, docs/Probe.md):
+// The files:
+//   engine.h / .cpp   the game's objects: layouts, virtual-call offsets, the engine functions and finding them
+//   port.h / .cpp     the rules' view of the game (core::SpawnPort), and the vehicle's state kept in F4 for saves
+//   hooks.cpp         the logic.dll hooks that feed the rules, and installing them
+//   tables.cpp        reading the framework's columns from the enabled mods' tables (the parsing is core/)
+//   log.cpp           the log and the crash guard
+//   game_dll/panel.cpp  game.dll: F4's button shows the cooldown and each vehicle's own pictures and tooltips
+//
+// How it works in logic.dll (GOG 1.09.1221; the plugin finds everything by RTTI and byte patterns, and checks the
+// first bytes of every function it calls or replaces - engine.h, hooks.cpp):
 //  * F4 mode is the AI state AiDoRechargeState: its first tick (slot 6) - the vehicle has deployed; its destructor
 //    (slot 0) - F4 mode is over, for whatever reason (packing up, the vehicle destroyed, another order).
-//  * Game time: AiFacet::update(dt) (slot 10) runs every frame for every vehicle - the cooldowns run on its dt.
+//  * Game time: AiFacet::update(dt) (slot 10) runs every frame for every vehicle - the cooldowns run on its dt, and a
+//    new world there is a map change (a mission started, a game loaded).
 //  * Spawning: the function behind Lua game.spawnSquad (LogicUtilsImpl slot 147 -> 0x526d10), with the vehicle's
 //    team name (the rows of forces.xml in team id order).
 //  * Kits: the vehicle's AmmunitionDepotHelper (its AiFacet +0x1c8): consume one round (slot 22), as firing does.
 //  * Killing: the engine's self-detonation of bomb drones (0x532f60, behind the self-detonate command): every
-//    soldier takes a lethal hit and dies as if hit, with its explode_damage and destroy_effect.
+//    soldier takes a lethal hit and dies as if hit, with its explode_damage and destroy_effect. A soldier inside a
+//    building or a vehicle takes no hit: a few seconds later it goes into the engine's kill queue (0x542360 /
+//    0x292d70, as the mission action killAction does).
 //  * Packing up when the squad is lost: the mission action's "pack" (0x10ef50) - an AiStopRechargeOrder to the
 //    vehicle's AI, as the player's F4 gives.
+//  * Saved games: the vehicle's cooldown and squad are kept in F4's own ability timer and length, which the game
+//    saves (port.h, "Saved games").
 //  * What a vehicle spawns: the framework's columns of the vehicle tables of the enabled mods (tables.cpp).
+// In game.dll (panel.cpp): F4's button (TwiceAbilityWindow) greys out and fills a progress bar while F4's timer runs.
+// docs/Probe.md has the first probe's findings; every address the plugin uses is documented where it is used.
 #pragma once
 
 #include <windows.h>
@@ -65,14 +80,13 @@ void guarded(const char* where, F&& f) {
 
 // ---------------------------------------------------------------- what vehicles spawn (tables.cpp)
 
-// The framework's columns of the vehicle tables of every mod enabled in the game's MODS menu, read on first use;
-// `gameDir` - the game folder (with bin\, mods\).
+// The framework's columns of the vehicle tables of every mod enabled in the game's MODS menu, read on first use.
 const core::SpawnTable& spawnTable();
+// The game folder (with bin\, mods\), where the mods are; set by the entry point before anything is read.
 void setGameDir(const std::wstring& gameDir);
 // The game folder: two levels above the folder the plugin DLL is in (bin\plugins\, DefianceLoader\plugins\).
 std::wstring gameDirOf(HMODULE self);
-// The framework's row of a vehicle: its sysname's in spawnTable(); nullptr - not a vehicle of the framework (for the
-// game.dll part, which gives F4 the vehicle's own pictures and tooltips by it).
+// The framework's row of a vehicle entity: its sysname's in spawnTable(); nullptr - not a vehicle of the framework.
 const core::SpawnConfig* spawnConfigOf(void* entity);
 
 // ---------------------------------------------------------------- finding and patching

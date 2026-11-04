@@ -5,16 +5,16 @@
 // button is greyed out (0x2b0e80(button, true)), a progress bar of its layout ("progress_bar") shows the part still
 // to wait ([bar+0x1a8], then 0x2c5400(bar)), and the button is not ready (slot 33), so it cannot be pressed. F4 (Pack,
 // ability 7) is a TwiceAbilityWindow - two buttons, "unpack" ([+0x130]) and "pack" ([+0x238]) - which does none of
-// that. The logic.dll part (plugin.cpp) keeps a vehicle's cooldown in F4's own timer; here TwiceAbilityWindow's
+// that. The logic.dll part (logic_dll/port.h) keeps a vehicle's cooldown in F4's own timer; here TwiceAbilityWindow's
 // update (slot 7) and "ready" (slot 33) do for F4 what TimerAbilityWindow does for its ability:
 //   * timer running: both buttons greyed out, the progress bar shown with the part still to wait, not ready;
 //   * timer over: the buttons as before, the bar hidden -
 //   * except on a vehicle of the framework: there a bar stays, with nothing to wait, so F4 shows the bar's picture
-//     instead of the game's box - "progress_bar" (the squad going out) on the deploy button, "progress_bar_2" (the
-//     squad called back) on the pack-up one. The pictures and the buttons' tooltips are the vehicle's own - its
-//     row's spawn_icon* and spawn_tooltip* (core/config.h), set on the widgets whenever another vehicle's F4 is
-//     shown - or the framework's defaults; the tooltip keys take the place of order_unpack and order_pack. Every
-//     other vehicle's F4 stays as the game draws it.
+//     instead of the game's - "progress_bar" on the deploy button, "progress_bar_2" on the pack-up one. The
+//     pictures and the buttons' tooltips are the vehicle's own - its row's spawn_icon* and spawn_tooltip*, or the
+//     framework's defaults (core/look.h makes the choice) - set on the widgets whenever another vehicle's F4 is
+//     shown; the tooltip keys take the place of order_unpack and order_pack. Every other vehicle's F4 stays as the
+//     game draws it.
 // The progress bars come with the Spawn Framework mod's scripts/ui/AbilityButtons/pack.txt; without them F4 only
 // greys out.
 //
@@ -26,34 +26,20 @@
 #include <cstring>
 #include <unordered_set>
 
+#include "../core/look.h"
+#include "../logic_dll/engine.h"
 #include "../logic_dll/plugin.h"
 
 namespace spawn {
 
 namespace {
 
-template <class R, class... A>
-R vcall(void* obj, size_t offset, A... args) {
-    auto vtbl = *reinterpret_cast<void***>(obj);
-    return reinterpret_cast<R (*)(void*, A...)>(vtbl[offset / 8])(obj, args...);
-}
-void* field(void* obj, size_t off) { return *reinterpret_cast<void**>(static_cast<char*>(obj) + off); }
+using namespace engine;
 
-struct MsvcString {
-    union {
-        char buf[16];
-        const char* ptr;
-    };
-    size_t size, cap;
-    const char* c_str() const { return cap > 15 ? ptr : buf; }
-};
-
-constexpr int kAbilityPack = 7;
 constexpr size_t kWinAbility = 0x120, kWinLayout = 0x128, kWinButton = 0x130, kWinButton2 = 0x238, kWinUnit = 0x138;
 constexpr size_t kWinShowing = 0x240;  // 0 - the unpack (deploy) button is shown, 1 - the pack-up one
 constexpr size_t kLayoutChildren = 0x40, kChildName = 0x18, kWidgetShown = 0x5b, kWidgetShow = 0x48;
 constexpr size_t kBarValue = 0x1a8, kWidgetTip = 0x80;
-constexpr size_t kGetAbilityTimer = 0xf0, kGetAbilityLength = 0xf8;  // AiFacet slots 30 / 31
 
 using WindowFn = void (*)(void* window);
 using ReadyFn = bool (*)(void* window);
@@ -69,14 +55,13 @@ std::unordered_set<void*> g_greyed;  // windows whose buttons we greyed out (onl
 // F4's timer and its length for the window's unit (and the unit); false - not F4, or no unit / AI.
 bool packTimer(void* window, float& left, float& length, void** unitOut = nullptr) {
     if (*reinterpret_cast<int*>(static_cast<char*>(window) + kWinAbility) != kAbilityPack) return false;
-    void* rb = field(window, kWinUnit);
-    void* unit = rb ? field(rb, 0x10) : nullptr;
+    void* unit = objectOf(field(window, kWinUnit));
     if (!unit) return false;
     if (unitOut) *unitOut = unit;
-    void* ai = field(vcall<void*>(unit, 0xb0), 0x28);
+    void* ai = aiOf(unit);
     if (!ai) return false;
-    left = vcall<float>(ai, kGetAbilityTimer, kAbilityPack);
-    length = vcall<float>(ai, kGetAbilityLength, kAbilityPack);
+    left = abilityTimer(ai, kAbilityPack);
+    length = abilityLength(ai, kAbilityPack);
     return true;
 }
 
@@ -109,46 +94,23 @@ void showBar(void* bar, float part) {
     g_refresh(bar);
 }
 
-// ---- each vehicle's own look: its row's spawn_icon* / spawn_tooltip* (core/config.h), or the framework's defaults
-// (the Spawn Framework mod's files)
+// ---- each vehicle's own look (core/look.h), put on the widgets
 
-constexpr const char* kDefaultIcon = "main\\buttons2\\spawn_framework_ready.dds";
-constexpr const char* kDefaultIconCooldown = "main\\buttons2\\spawn_framework_cooldown.dds";
-constexpr const char* kDefaultIconRecall = "main\\buttons2\\spawn_framework_recall.dds";
-constexpr const char* kDefaultTip = "spawn_deploy";
-constexpr const char* kDefaultTipRecall = "spawn_recall";
-constexpr const char* kGameTip = "order_unpack";  // the game's own, on every other vehicle
-constexpr const char* kGameTipRecall = "order_pack";
-constexpr size_t kMaxTip = 15;  // a key the plugin can write into the game's string in place
-
-std::string orDefault(const std::string& value, const char* fallback) { return value.empty() ? fallback : value; }
-
-// A tooltip key from a vehicle's row: too long to write in place - the default (and a line in the log, once).
-std::string tipOf(const std::string& key, const char* fallback) {
-    if (key.empty()) return fallback;
-    if (key.size() <= kMaxTip) return key;
+// A tooltip key of a vehicle's row too long to write in place: logged once.
+void tellTooLong(const core::Look& look) {
     static std::unordered_set<std::string> told;
-    if (told.insert(key).second)
-        g_log("tooltip key '%s' is longer than %zu characters - the default '%s' is shown", key.c_str(), kMaxTip,
-              fallback);
-    return fallback;
-}
-
-// Is `key` one of the framework's tooltip keys: a default or any framework vehicle's?
-bool frameworkTip(const char* key) {
-    if (strcmp(key, kDefaultTip) == 0 || strcmp(key, kDefaultTipRecall) == 0) return true;
-    for (const auto& [name, c] : spawnTable())
-        if (c.tooltip == key || c.tooltipRecall == key) return true;
-    return false;
+    if (!look.tooLong.empty() && told.insert(look.tooLong).second)
+        g_log("tooltip key '%s' is longer than %zu characters - the default is shown", look.tooLong.c_str(),
+              core::kMaxTip);
 }
 
 // Put `want` into a button's tooltip key - only over the game's own key or one of the framework's, and in the
 // string itself (at most 15 characters: no memory of the game's to allocate or free).
 void setTip(void* button, const char* gameKey, const std::string& want) {
-    if (!button || want.size() > kMaxTip) return;
+    if (!button || want.size() > core::kMaxTip) return;
     auto tip = reinterpret_cast<MsvcString*>(static_cast<char*>(button) + kWidgetTip);
     if (tip->cap != 15 || tip->size > 15 || want == tip->buf) return;
-    if (strcmp(tip->buf, gameKey) != 0 && !frameworkTip(tip->buf)) return;
+    if (strcmp(tip->buf, gameKey) != 0 && !core::isFrameworkTip(spawnTable(), tip->buf)) return;
     memcpy(tip->buf, want.c_str(), want.size() + 1);
     tip->size = want.size();
 }
@@ -165,29 +127,20 @@ void setPicture(void* widget, const std::string& name) {
     std::string path = "ui/pictures/" + name.substr(0, name.rfind('.'));
     auto now = reinterpret_cast<const MsvcString*>(static_cast<char*>(widget) + kWidgetPicture);
     if (now->size == path.size() && memcmp(now->c_str(), path.data(), path.size()) == 0) return;
-    MsvcString s{};
-    s.size = path.size();
-    if (path.size() <= 15) {
-        memcpy(s.buf, path.c_str(), path.size() + 1);
-        s.cap = 15;
-    } else {
-        s.ptr = path.c_str();
-        s.cap = path.size();
-    }
+    MsvcString s = msvc(path);
     g_setPicture(widget, &s);
 }
 
 // The vehicle's pictures on F4's two bars: the deploy one - its icon, filled with its cooldown picture; the
-// pack-up one - its recall picture.
-void setPictures(void* bar, void* bar2, const core::SpawnConfig& c) {
+// pack-up one - its pack-up picture (also under the bar's fill, which never shows: there is nothing to wait).
+void setPictures(void* bar, void* bar2, const core::Look& look) {
     if (bar) {
-        setPicture(bar, orDefault(c.icon, kDefaultIcon));
-        setPicture(field(bar, kBarProgressPicture), orDefault(c.iconCooldown, kDefaultIconCooldown));
+        setPicture(bar, look.icon);
+        setPicture(field(bar, kBarProgressPicture), look.iconCooldown);
     }
     if (bar2) {
-        std::string recall = orDefault(c.iconRecall, kDefaultIconRecall);
-        setPicture(bar2, recall);
-        setPicture(field(bar2, kBarProgressPicture), recall);
+        setPicture(bar2, look.iconRecall);
+        setPicture(field(bar2, kBarProgressPicture), look.iconRecall);
     }
 }
 
@@ -200,11 +153,13 @@ void hookUpdate(void* window) {
         void* unit = nullptr;
         if (!packTimer(window, left, length, &unit)) return;
         const core::SpawnConfig* c = spawnConfigOf(unit);
-        setTip(field(window, kWinButton), kGameTip, c ? tipOf(c->tooltip, kDefaultTip) : kGameTip);
-        setTip(field(window, kWinButton2), kGameTipRecall, c ? tipOf(c->tooltipRecall, kDefaultTipRecall) : kGameTipRecall);
+        core::Look look = core::lookOf(c);
+        tellTooLong(look);
+        setTip(field(window, kWinButton), core::kGameTip, look.tip);
+        setTip(field(window, kWinButton2), core::kGameTipRecall, look.tipRecall);
         void* bar = child(window, "progress_bar");
         void* bar2 = child(window, "progress_bar_2");
-        if (c) setPictures(bar, bar2, *c);
+        if (c) setPictures(bar, bar2, look);
         if (left > 0 && length > 0) {
             greyButtons(window, true);
             g_greyed.insert(window);

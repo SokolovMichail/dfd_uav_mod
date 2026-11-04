@@ -1,5 +1,5 @@
 // SpawnFramework.dll on its own: the entry point when our winhttp.dll loads the plugin from bin\plugins. It waits for
-// logic.dll and patches it the moment it is loaded (onLogicLoaded, plugin.cpp).
+// logic.dll and patches it the moment it is loaded (onLogicLoaded, hooks.cpp).
 
 #include "plugin.h"
 

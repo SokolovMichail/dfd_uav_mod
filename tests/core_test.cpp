@@ -1,11 +1,12 @@
 // Tests of the game-agnostic core of the Spawn Framework (plugins/spawn/core): the rules of a vehicle that keeps one
-// squad of its own while deployed, and reading the framework's columns from a vehicle table.
+// squad of its own while deployed, reading the framework's columns from a vehicle table, which tables are read and
+// how the mods' rows come together, and the choice of F4's pictures and tooltips.
 //
 // The core talks to the game only through SpawnPort, so here the port is a plain test object: vehicles are entries
 // in a map, squads are numbers that live until killed, and the port writes down what it was asked to do.
 //
-// This program is built without Windows headers (tests/CMakeLists.txt): if the core ever starts depending on Windows
-// or on logic.dll, it stops compiling here.
+// The core sources are built here with Windows headers switched off (tests/CMakeLists.txt, spawn_core_checked): if the
+// core ever starts depending on Windows or on logic.dll, the tests stop compiling.
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
@@ -15,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "../plugins/spawn/core/look.h"
+#include "../plugins/spawn/core/mods.h"
 #include "../plugins/spawn/core/spawner.h"
 
 using namespace spawn::core;
@@ -549,4 +552,93 @@ TEST_CASE("a later table replaces a vehicle's row; entities are decoded") {
     readSpawnColumns(a, t);
     readSpawnColumns(b, t);
     CHECK(t["Van"].squad == "B&C");
+}
+
+// ---------------------------------------------------------------- which tables, and the mods' rows (mods.h)
+
+TEST_CASE("the enabled mods are read from mods.json in its order") {
+    const char* json = R"([
+        {"enabled": true, "folder": "Spawn_Framework"},
+        {"folder": "HEMTT_Spares", "enabled": false},
+        {"enabled":true,"folder":"UAV_Carriers"},
+        {"enabled": true},
+        {"folder": "No_Flag"}
+    ])";
+    CHECK(enabledMods(json) == std::vector<std::string>{"Spawn_Framework", "UAV_Carriers"});
+    CHECK(enabledMods("").empty());
+    CHECK(enabledMods("not json").empty());
+}
+
+TEST_CASE("vehicle tables: cars and tanks, and their table-merge patches, any case") {
+    CHECK(isVehicleTable("cars.xml"));
+    CHECK(isVehicleTable("Tanks.XML"));
+    CHECK(isVehicleTable("cars.uav_carriers.patch.xml"));
+    CHECK(isVehicleTable("TANKS.Mod.Patch.Xml"));
+    CHECK_FALSE(isVehicleTable("cars..patch.xml"));
+    CHECK_FALSE(isVehicleTable("humans.xml"));
+    CHECK_FALSE(isVehicleTable("cars.xml.bak"));
+    CHECK_FALSE(isVehicleTable("supercars.xml"));
+}
+
+TEST_CASE("merging rows: the later row wins, and only a different row is a clash") {
+    SpawnConfig a;
+    a.squad = "A";
+    SpawnConfig b = a;
+    b.icon = "other.dds";  // any column counts, not only the squad, kit and cooldown
+    SpawnTable all = {{"Van", a}};
+    CHECK(mergeRows(all, {{"Van", a}}).empty());
+    CHECK(mergeRows(all, {{"Van", b}, {"Truck", a}}) == std::vector<std::string>{"Van"});
+    CHECK(all["Van"].icon == b.icon);
+    CHECK(all.size() == 2);
+}
+
+// ---------------------------------------------------------------- F4's look (look.h)
+
+TEST_CASE("F4's look: the row's pictures and tooltips, the defaults for empty cells, the game's for other vehicles") {
+    Look other = lookOf(nullptr);
+    CHECK(other.tip == kGameTip);
+    CHECK(other.tipRecall == kGameTipRecall);
+    CHECK(other.icon.empty());
+
+    SpawnConfig c;
+    c.squad = "S";
+    Look plain = lookOf(&c);
+    CHECK(plain.icon == kDefaultIcon);
+    CHECK(plain.iconCooldown == kDefaultIconCooldown);
+    CHECK(plain.iconRecall == kDefaultIconRecall);
+    CHECK(plain.tip == kDefaultTip);
+    CHECK(plain.tipRecall == kDefaultTipRecall);
+    CHECK(plain.tooLong.empty());
+
+    c.icon = "a.dds";
+    c.iconRecall = "b.dds";
+    c.tooltip = "uavc_deploy";
+    Look own = lookOf(&c);
+    CHECK(own.icon == "a.dds");
+    CHECK(own.iconCooldown == kDefaultIconCooldown);
+    CHECK(own.iconRecall == "b.dds");
+    CHECK(own.tip == "uavc_deploy");
+    CHECK(own.tipRecall == kDefaultTipRecall);
+}
+
+TEST_CASE("a tooltip key longer than the game's string holds in place shows the default, and is reported") {
+    SpawnConfig c;
+    c.squad = "S";
+    c.tooltip = std::string(kMaxTip, 'k');
+    c.tooltipRecall = std::string(kMaxTip + 1, 'r');
+    Look l = lookOf(&c);
+    CHECK(l.tip == c.tooltip);
+    CHECK(l.tipRecall == kDefaultTipRecall);
+    CHECK(l.tooLong == c.tooltipRecall);
+}
+
+TEST_CASE("the framework's tooltip keys: the defaults and every vehicle's, nothing else") {
+    SpawnConfig c;
+    c.squad = "S";
+    c.tooltipRecall = "uavc_recall";
+    SpawnTable t = {{"Van", c}};
+    CHECK(isFrameworkTip(t, kDefaultTip));
+    CHECK(isFrameworkTip(t, "uavc_recall"));
+    CHECK_FALSE(isFrameworkTip(t, kGameTip));
+    CHECK_FALSE(isFrameworkTip(t, "another_mods_key"));
 }

@@ -1,14 +1,16 @@
 // spawn_framework.dll: the same plugin as a DefianceLoader plugin (https://github.com/DefianceLoader/DefianceLoader).
 //
 // The loader loads the DLL from DefianceLoader\plugins, with spawn_framework.plugin.json beside it, and calls init()
-// once logic.dll is in the process. init finds the same places as the standalone DLL (install) but writes none of
-// them itself: every write (three vtable slots) is handed to the loader (patch_bytes), which checks it against the
-// other plugins' writes and makes them all together after init. If anything is not found or not as expected, init
-// fails and the loader drops everything this plugin asked for. The same list is the patch contract.
+// once logic.dll is in the process. init finds the same places as the standalone DLL (install, installPanel) but
+// writes none of them itself: every write - three vtable slots in logic.dll, two in game.dll - is handed to the loader
+// (patch_bytes), which checks it against the other plugins' writes and makes them all together after init. If
+// anything in logic.dll is not found or not as expected, init fails and the loader drops everything this plugin asked
+// for; game.dll's part may fail alone (F4 then does not show the cooldown). The same list is the patch contract.
 //
 // The rules and the hooks are the standalone DLL's. Only the entry point, the log and the way the patches go in
 // differ. (Same as DFDRepairMod's spares_repair.dll.)
 
+#include <cstring>
 #include <memory>
 #include <string>
 
@@ -56,11 +58,11 @@ std::string moduleName(HMODULE m) {
     return len > 0 ? utf8 : "?";
 }
 
-// The loader's Patcher. apply() checks every write the way dfd::PatchSet does, then asks the loader for each one
-// (patch_bytes) instead of writing it: a vtable slot is 8 bytes, from the original function's address to the hook's.
 // The writes every patcher staged, for the patch contract (entries point into the patchers, kept for the process).
 std::vector<DefiancePatchContractEntryV1> g_contract;
 
+// The loader's Patcher. apply() checks every write the way dfd::PatchSet does, then asks the loader for each one
+// (patch_bytes) instead of writing it: a vtable slot is 8 bytes, from the original function's address to the hook's.
 class DefiancePatcher final : public Patcher {
 public:
     DefiancePatcher(const Image& img, const char* module) : img_(img), module_(module) {}
