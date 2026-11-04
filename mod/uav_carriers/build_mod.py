@@ -50,7 +50,7 @@ import rusty_drone  # noqa: E402
 KIT = 'uav_kit'
 KITS = 5
 # A drone is a single-use, fragile scout with no range limit: eyes anywhere without risking anyone, but pricey, and
-# its carrier cannot move while it flies. Its kit's restock cost (the game's: smoke rounds 200).
+# its carrier cannot move while it flies. Its kit's restock cost (the smoke round it is copied from costs 8).
 KIT_COST = 500
 # The kit's own ammunition pictures (art/kit_icons.py: the drone in the style of the game's, made on the smoke
 # round's) - textures/ui/pictures/Ammunition/uavc_kit[_o, _p, _off, _off_o, _off_p].dds - and its name and

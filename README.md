@@ -63,12 +63,15 @@ Development builds add the framework's test vehicles to UAV Carriers (the CMake 
 by default; off for a release): the **Test Troop Van (untethered)** in the Resistance army - two marksman squads per
 launch, the framework's default F4 pictures.
 
+```bash
+cmake --build cmake-build-debug --target release
+```
+
+`release` makes `dist/`: the four archives (`mod/package.py`; their players' README is `docs/Dist-readme.md`), their
+`SHA256SUMS.txt`, and UAV Carriers' cover and banner for the mod page. It builds the DLLs in a nested Release build
+and the mods without the test vehicles; two runs give byte-identical archives.
+
 ## Roadmap
-
-To do:
-
-- **Release 1.0 packaging** - the release archives and their readme, a build with the test vehicles off (the
-  version, the MODS menu icons and UAV Carriers' cover and banner are done).
 
 Done on branches, not in `dev`:
 

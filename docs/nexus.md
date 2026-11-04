@@ -161,7 +161,6 @@ Deploy a carrier with F4, and it launches a drone that you control like any othe
 * Both carriers use the models of the vehicles they are built on (the Integrators' gun truck and the Resistance van).
 * A drone inside a building or a vehicle when its carrier packs up dies a few seconds later, with its blast inside.
 * A deployed carrier shows the game's ammunition supply circle, though it hands out nothing and its drone has no range limit.
-* 
 # KNOWN MOD CONFLICTS
   HEMTT Spares (both replace scripts/species/cars.xml and other tables: enable only one of them).
   Generally, any mod that replaces the same game files.
