@@ -65,14 +65,16 @@ launch, the framework's default F4 pictures.
 
 ## Roadmap
 
-Done on branches, not in `dev` yet:
+To do:
 
-- **Recall** (`feature/recall`) - packed up with its whole squad inside the vehicle's circle, the vehicle takes the
-  squad back without a death and gets its kit back if it has room. Needs the pack-up picture and tooltip to match.
-- **Pack-up picture** (`feature/pack-icon`) - the carriers' drone struck out; the framework's default is the game's
-  own pack-up button; "Mobile mode" tooltips.
-- **Release 1.0** (`feature/release-1.0`) - the version, the MODS menu icons, UAV Carriers' cover and banner. Still
-  to do: the release archives and their readme, a build with the test vehicles off.
+- **Release 1.0 packaging** - the release archives and their readme, a build with the test vehicles off (the
+  version, the MODS menu icons and UAV Carriers' cover and banner are done).
+
+Done on branches, not in `dev`:
+
+- **Recall** (`feature/recall`, not planned for now) - packed up with its whole squad inside the vehicle's circle,
+  the vehicle takes the squad back without a death and gets its kit back if it has room. Would need the pack-up
+  picture and tooltip to match.
 - **DefianceLoader patch build** (`feature/defiance-patches`) - table-merge patches instead of whole tables, so the
   mod no longer clashes with HEMTT Spares. Waits for DefianceLoader to fix its table merge (it misses the unit
   cache's first reads).
@@ -84,6 +86,8 @@ Ideas:
   Needs: the logic.dll function behind them (a probe, as for squads); a crew - a squad that can drive it
   (`squads.xml` `driving_classes`); "alive" and "destroy" for a vehicle in `SpawnPort` (today: soldiers alive, and
   their self-detonation); a column saying what to spawn.
+- **A compatibility mod for HEMTT Spares** until the patch build works: the shared tables with both mods' rows,
+  enabled below both.
 - **The carriers' own circle** instead of the ammunition supply circle they show now (it clashes with HEMTT Spares,
   which changes the same circle code).
 - **Enemy AI using carriers.**
