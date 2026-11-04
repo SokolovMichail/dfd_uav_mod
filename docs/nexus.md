@@ -1,3 +1,6 @@
+# Short description
+Deploy a carrier with F4 and it launches a recon drone you fly like any other unit: eyes anywhere, no soldier at risk. Two carriers: the Integrators' Recon UAV Carrier and the Resistance's rusty Patchwork UAV Carrier. Built on the Spawn Framework, which lets any mod give a vehicle units of its own on deploy.
+
 # Description
 UAV carriers for Terminator: Dark Fate - Defiance: deploy the vehicle and it keeps a recon drone of its own in the air.
 
