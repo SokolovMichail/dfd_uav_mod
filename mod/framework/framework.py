@@ -23,7 +23,8 @@ def picture_name(file_name):
     return 'main\\buttons2\\' + file_name
 
 
-# The defaults (panel.cpp kDefaultIcon...): the framework's pictures, made from the generic rifle squad's icon.
+# The defaults - the plugin names the same files and keys (plugins/spawn/core/look.h, kDefaultIcon...): change both.
+# The framework's pictures, made from the generic rifle squad's icon.
 DEFAULT_PREFIX = 'spawn_framework'
 DEFAULT_ICON_SOURCE = 'textures/ui/pictures/tech_pic/infantry_icons_big/gnrc_rifle.dds'
 DEFAULT_TIP, DEFAULT_TIP_RECALL = 'spawn_deploy', 'spawn_recall'

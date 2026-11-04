@@ -1,10 +1,10 @@
-"""Распаковка файлов из .pak игры (zip с паролем ZipCrypto).
+"""Unpacks files from the game's .pak archives (zip with a ZipCrypto password).
 
-    python mod/tools/pak_extract.py <архив.pak> [маска ...] [-o папка]   # без маски - список файлов
+    python mod/tools/pak_extract.py <archive.pak> [mask ...] [-o folder]   # no mask - list the files
 
-Пароль: DFD_PAK_PASSWORD - переменная окружения или строка в .env в корне проекта (в git не кладётся).
-Маски - fnmatch по пути внутри архива (например locale/cars.xml или 'scripts/species/*').
-По умолчанию -o mod/extracted/<имя архива>.
+Password: DFD_PAK_PASSWORD - an environment variable or a line in .env in the project root (never put in git).
+Masks - fnmatch on the path inside the archive (e.g. locale/cars.xml or 'scripts/species/*').
+By default -o mod/extracted/<archive name>.
 """
 import fnmatch
 import os

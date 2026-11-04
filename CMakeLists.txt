@@ -30,15 +30,20 @@ dfd_dll(winhttp)
 
 # ---- the Spawn Framework plugin
 # core/ - the game-agnostic rules (no Windows, no logic.dll), shared by the plugin and the tests;
-# logic_dll/ - the binding to the current game build, under the crash guard (common/guard.h).
+# logic_dll/ and game_dll/ - the binding to the current game build, under the crash guard (common/guard.h).
 set(SPAWN_CORE_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/config.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/look.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/mods.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/core/spawner.cpp")
 set(DFD_GUARD_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/common/guard.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/common/guard_x64.S")
 set(SPAWN_SOURCES ${SPAWN_CORE_SOURCES} ${DFD_GUARD_SOURCES}
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/plugin.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/engine.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/hooks.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/log.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/port.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/logic_dll/tables.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn/game_dll/panel.cpp")
 # uuid: FOLDERID_Documents, for the folder the game keeps mods.json in (tables.cpp)

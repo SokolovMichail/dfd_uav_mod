@@ -25,7 +25,15 @@
 
 namespace spawn::core {
 
-// A vehicle in the game world. Opaque: only the binding knows what it points to.
+// A vehicle in the game world, as an opaque handle - like HWND or FILE*. The class is declared and never defined (an
+// incomplete type), so a Vehicle* cannot be looked into: the rules only keep it (a map key) and hand it back to the
+// port, which alone knows what it points to. There is no interface to implement - every question about the vehicle
+// goes through SpawnPort.
+//   - In the game it is the address of the game's own vehicle entity, relabelled (logic_dll/port.h, handle() and
+//     entity()); nothing ever dereferences it as a Vehicle.
+//   - In the tests it is a made-up number that points at nothing (tests/core_test.cpp, handle()).
+// Why not void*: a distinct type, so only something deliberately labelled a vehicle goes where one is expected - not
+// an AI facet, a world, or any other engine pointer.
 class Vehicle;
 
 // A squad, by the game's entity id; 0 - none.

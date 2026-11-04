@@ -16,6 +16,7 @@
 //                         cooldown fills over it
 //   spawn_icon_cooldown   the picture the cooldown fills with (a dim copy of spawn_icon)
 //   spawn_icon_recall     F4's pack-up button
+//   (the defaults, and how the plugin picks between them and the row's - look.h)
 //   spawn_tooltip         the deploy button's tooltip: a locale/strres.xml key, with <key>_desc and <key>_add rows;
 //                         at most 15 characters (the plugin writes it into the game's string in place)
 //   spawn_tooltip_recall  the pack-up button's, the same way
@@ -29,10 +30,14 @@
 
 namespace spawn::core {
 
+constexpr float kDefaultCooldown = 60.0f;  // spawn_cooldown empty or not a number
+constexpr int kMaxCount = 20;              // spawn_count above it is taken as this
+
+// One vehicle's row: what it spawns, and how its F4 button looks.
 struct SpawnConfig {
     std::string squad;
     std::string ammo;
-    float cooldown = 60.0f;
+    float cooldown = kDefaultCooldown;
     bool tethered = true;
     int count = 1;  // as the table has it; the rules launch unitsPerDeploy()
     std::string icon, iconCooldown, iconRecall;  // empty - the default
@@ -40,14 +45,12 @@ struct SpawnConfig {
 
     // Squads a deploy launches: a tethered vehicle keeps one.
     int unitsPerDeploy() const { return tethered ? 1 : count; }
-};
 
-constexpr int kMaxCount = 20;  // spawn_count above it is taken as this
+    bool operator==(const SpawnConfig&) const = default;
+};
 
 // Vehicle sysname -> what it spawns.
 using SpawnTable = std::map<std::string, SpawnConfig>;
-
-constexpr float kDefaultCooldown = 60.0f;
 
 // The rows of a SpreadsheetML table (its first worksheet) that have a spawn_squad, added to `into` (a row there
 // with the same sysname is replaced). A table without a spawn_squad column adds nothing. Returns the number of rows

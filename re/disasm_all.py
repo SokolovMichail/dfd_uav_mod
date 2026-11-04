@@ -1,4 +1,4 @@
-# python re/disasm_all.py [out.pkl]  -  дизассемблирует все функции DLL (по .pdata) в кэш re/cache/<dll>.pkl
+# python re/disasm_all.py [out.pkl]  -  disassembles every function of the DLL (by .pdata) into the cache re/cache/<dll>.pkl
 import struct,capstone,pickle,sys,os
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 from _game import dll_path,pkl_path
