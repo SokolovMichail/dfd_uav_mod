@@ -123,6 +123,40 @@ add_custom_target(deploy_defiance
         COMMENT "Install the DefianceLoader plugin spawn_framework.dll, mods\\Spawn_Framework and mods\\UAV_Carriers into ${GAME_DIR}"
         VERBATIM)
 
+# ---- release -> dist/: the four archives (mod/package.py), their SHA256SUMS.txt and UAV Carriers' cover and banner:
+#   UAV_Carriers_v<version>.zip, UAV_Carriers_DefianceLoader_v<version>.zip - the framework + UAV Carriers;
+#   SpawnFramework_v<version>.zip, SpawnFramework_DefianceLoader_v<version>.zip - the framework only.
+# The DLLs always come from a nested Release build (whatever CLion's profile is), the mods are built without the test
+# vehicles. dist/ is made anew each time.
+if (NOT DFD_NESTED_RELEASE)
+    set(REL_DIR "${CMAKE_BINARY_DIR}/release")
+    set(REL_MODS "${REL_DIR}/stage/mods")
+    set(REL_SRC "${REL_DIR}/stage/_game_src")
+    set(DIST "${CMAKE_SOURCE_DIR}/dist")
+    set(PACKAGE_COMMON --framework-mod "${REL_MODS}/Spawn_Framework" --version ${MOD_VERSION} --out "${DIST}")
+    set(PACKAGE_EXAMPLE --mod "${REL_MODS}/UAV_Carriers")
+    set(PACKAGE_STANDALONE --winhttp "${REL_DIR}/winhttp.dll" --plugin "${REL_DIR}/SpawnFramework.dll")
+    set(PACKAGE_DEFIANCE --defiance --plugin "${REL_DIR}/spawn_framework.dll"
+            --manifest "${REL_DIR}/spawn_framework.plugin.json")
+    add_custom_target(release
+            COMMAND ${CMAKE_COMMAND} -S "${CMAKE_SOURCE_DIR}" -B "${REL_DIR}" -G "${CMAKE_GENERATOR}"
+                    -DCMAKE_BUILD_TYPE=Release -DDFD_NESTED_RELEASE=ON -DSPAWN_TEST_VEHICLES=OFF
+                    "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+                    "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}" "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+                    "-DCMAKE_ASM_COMPILER=${CMAKE_ASM_COMPILER}"
+                    "-DPython3_EXECUTABLE=${Python3_EXECUTABLE}" "-DGAME_DIR=${GAME_DIR}"
+            COMMAND ${CMAKE_COMMAND} --build "${REL_DIR}" --target winhttp SpawnFramework spawn_framework mod
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${DIST}"
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${PACKAGE_STANDALONE} ${PACKAGE_COMMON}
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${PACKAGE_DEFIANCE} ${PACKAGE_COMMON}
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${PACKAGE_STANDALONE} ${PACKAGE_COMMON} ${PACKAGE_EXAMPLE}
+            COMMAND ${Python3_EXECUTABLE} mod/package.py ${PACKAGE_DEFIANCE} ${PACKAGE_COMMON} ${PACKAGE_EXAMPLE}
+                    --cover-from "${REL_SRC}/base"
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            COMMENT "Release the Spawn Framework and UAV Carriers ${MOD_VERSION} -> dist/"
+            USES_TERMINAL VERBATIM)
+endif ()
+
 # ---- Phase 0 probe (bin\plugins\SpawnProbe.dll) and its test vehicle (mods\SpawnProbe)
 add_library(SpawnProbe SHARED plugins/spawn_probe/probe.cpp)
 dfd_dll(SpawnProbe)
