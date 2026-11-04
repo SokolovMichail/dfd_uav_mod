@@ -1,15 +1,15 @@
 import sys,os,re,capstone
-# python re/mksig.py <rva>:<начало функции>:<нужно совпадений> ...  -  уникальный байтовый шаблон (rip/call замаскированы)
+# python re/mksig.py <rva>:<function start>:<matches wanted> ...  -  a unique byte pattern (rip/call masked)
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 from cls import d,r2o,o2r
 from riprefs import secs
 txt=[s for s in secs if s[0]=='.text'][0]   # (name, vsize, va, rsize, raddr)
 T0=txt[4]; T=d[T0:T0+txt[3]]; TVA=txt[2]
 md=capstone.Cs(capstone.CS_ARCH_X86,capstone.CS_MODE_64); md.detail=True
-# дизассемблировать [start, end)
+# disassemble [start, end)
 def insns(start,end):
     o=r2o(start); return list(md.disasm(d[o:o+(end-start)],start))
-# байты инструкции и маска: rip-смещения и адреса call/jmp - «любой байт» (меняются между сборками)
+# an instruction's bytes and mask: rip offsets and call/jmp addresses are "any byte" (they change between builds)
 def masked(ins):
     b=list(ins.bytes); m=[True]*len(b)
     if ins.disp_size and any(op.type==capstone.x86.X86_OP_MEM and op.mem.base==capstone.x86.X86_REG_RIP for op in ins.operands):
@@ -18,12 +18,12 @@ def masked(ins):
         if ins.imm_size and ins.operands and ins.operands[0].type==capstone.x86.X86_OP_IMM:
             for i in range(ins.imm_offset,ins.imm_offset+ins.imm_size): m[i]=False
     return b,m
-# все адреса в .text, где совпадает шаблон (pb - байты, pm - маска)
+# every address in .text where the pattern matches (pb - bytes, pm - mask)
 def count(pb,pm):
     # regex over .text
     rx=b''.join(re.escape(bytes([x])) if k else b'.' for x,k in zip(pb,pm))
     return [TVA+mm.start() for mm in re.finditer(rx,T,re.S)]
-# кратчайший шаблон (>= 20 байт) вокруг target, который встречается ровно expect раз: (шаблон, смещение target, совпадения)
+# the shortest pattern (>= 20 bytes) around target that occurs exactly expect times: (pattern, target's offset, matches)
 def sig(target,fn_start,expect=1,maxn=24):
     allins=[]
     a=fn_start

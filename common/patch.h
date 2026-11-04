@@ -1,8 +1,8 @@
-// Общие помощники для плагинов DFDRepairMod (header-only).
+// Common helpers for the DFDRepairMod plugins (header-only).
 //
-// Правило: адреса в DLL игры не зашиваются, а ищутся при загрузке - по байтовым шаблонам кода
-// (Image::find) и по RTTI-именам классов (Image::vtableOf). Каждая правка проверяет исходные байты /
-// начало подменяемой функции. Не нашлось или не совпало хоть что-то -> не патчим ничего, пишем в лог.
+// The rule: no address in the game's DLLs is hard-coded; each is found at load time - by byte patterns of the code
+// (Image::find) and by the RTTI names of classes (Image::vtableOf). Every write checks the original bytes / the
+// start of the function it replaces. Anything not found or not matching -> nothing is patched, and the log says why.
 #pragma once
 
 #include <windows.h>
@@ -17,11 +17,11 @@
 
 namespace dfd {
 
-// ---------------------------------------------------------------- лог
+// ---------------------------------------------------------------- the log
 
 class Log {
 public:
-    // Файл <папка этой DLL>\<name>.log, перезаписывается при каждом запуске игры.
+    // The file <this DLL's folder>\<name>.log, overwritten at every game start.
     void open(HMODULE self, const wchar_t* name) {
         wchar_t path[MAX_PATH];
         DWORD n = GetModuleFileNameW(self, path, MAX_PATH);
@@ -31,8 +31,8 @@ public:
         wcsncat(path, L".log", MAX_PATH - wcslen(path) - 1);
         f_ = _wfopen(path, L"w");
     }
-    // Записать строку в стиле printf с отметкой времени ЧЧ:ММ:СС. Сразу сбрасывается на диск, чтобы лог
-    // уцелел при падении игры. Если файл не открылся - молча ничего не делает.
+    // Write a printf-style line with an HH:MM:SS time stamp. Flushed to disk at once, so the log survives a game
+    // crash. If the file did not open - silently does nothing.
     void operator()(const char* fmt, ...) {
         if (!f_) return;
         time_t t = time(nullptr);
@@ -51,18 +51,19 @@ private:
     FILE* f_ = nullptr;
 };
 
-// ---------------------------------------------------------------- модуль
+// ---------------------------------------------------------------- the module
 
-// Загруженный PE-образ: секции и поиск по ним.
+// A loaded PE image: its sections and searching them.
 class Image {
 public:
-    // base - адрес загруженного модуля (то же, что HMODULE): по нему читаются заголовки PE.
+    // base - the loaded module's address (the same as its HMODULE): the PE headers are read from it.
     explicit Image(uintptr_t base) : base_(base) {
         auto dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
         nt_ = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
     }
     uintptr_t base() const { return base_; }
-    // RVA - смещение адреса от начала модуля; в таком виде адреса пишутся в лог и в engine_notes.md.
+    // RVA - an address's offset from the module's start; addresses are written this way in the log and in
+    // engine_notes.md.
     uint32_t rva(uintptr_t a) const { return static_cast<uint32_t>(a - base_); }
     uint32_t timeDateStamp() const { return nt_->FileHeader.TimeDateStamp; }
     uint32_t sizeOfImage() const { return nt_->OptionalHeader.SizeOfImage; }
@@ -70,8 +71,8 @@ public:
     struct Range {
         uintptr_t begin = 0, end = 0;
     };
-    // Границы секции (".text" - код, ".rdata" - константы и vtable, ".data" - данные) в памяти.
-    // Пустой диапазон, если такой секции нет.
+    // A section's bounds in memory (".text" - code, ".rdata" - constants and vtables, ".data" - data).
+    // An empty range if there is no such section.
     Range section(const char* name) const {
         auto s = IMAGE_FIRST_SECTION(nt_);
         for (int i = 0; i < nt_->FileHeader.NumberOfSections; ++i, ++s)
@@ -80,7 +81,7 @@ public:
         return {};
     }
 
-    // Шаблон "48 8B ?? 05": байты в hex, ?? - любой байт. Возвращает все совпадения в секции.
+    // A pattern "48 8B ?? 05": bytes in hex, ?? - any byte. Returns every match in the section.
     std::vector<uintptr_t> find(const char* pattern, const char* sect = ".text") const {
         std::vector<int> pat = parse(pattern);
         std::vector<uintptr_t> hits;
@@ -90,11 +91,11 @@ public:
             if (matchesAt(p, pat)) hits.push_back(p);
         return hits;
     }
-    // Совпадают ли байты по адресу at с шаблоном (тот же формат, что у find). Так проверяется начало
-    // функции перед подменой и инструкции по известному смещению.
+    // Do the bytes at `at` match the pattern (the same format as find's)? This is how the start of a function is
+    // checked before it is replaced, and an instruction at a known offset.
     static bool matches(uintptr_t at, const char* pattern) { return matchesAt(at, parse(pattern)); }
 
-    // Строка (с завершающим нулём) в секции: адрес первого вхождения или 0.
+    // A string (with its terminating zero) in a section: the address of its first occurrence, or 0.
     uintptr_t findString(const char* s, const char* sect = ".rdata") const {
         Range r = section(sect);
         size_t n = strlen(s) + 1;
@@ -103,17 +104,18 @@ public:
         return 0;
     }
 
-    // Адрес, на который ссылается rip-относительный операнд: disp32 по смещению dispAt, длина инструкции len.
+    // The address a rip-relative operand refers to: disp32 at offset dispAt, the instruction `len` bytes long.
     static uintptr_t ripTarget(uintptr_t insn, size_t dispAt, size_t len) {
         return insn + len + *reinterpret_cast<const int32_t*>(insn + dispAt);
     }
 
-    // Первичная vtable класса по RTTI: ".?AV<cls>@@" -> TypeDescriptor -> CompleteObjectLocator
-    // (offset 0) -> слот перед vtable. cls - полное имя с пространством имён, напр. "AmmoRechargerFacet@Leonardo".
-    // Так адрес vtable находится в любой сборке игры без шаблонов. 0 - класс не найден.
-    // Шаги: 1) строка-имя типа в .data (TypeDescriptor начинается за 0x10 байт до неё);
-    // 2) в .rdata - CompleteObjectLocator с этим TypeDescriptor и offset 0 (первичная vtable);
-    // 3) в .rdata - указатель на этот COL: vtable начинается сразу за ним.
+    // A class's primary vtable by RTTI: ".?AV<cls>@@" -> TypeDescriptor -> CompleteObjectLocator
+    // (offset 0) -> the slot before the vtable. cls - the full name with its namespace, e.g.
+    // "AmmoRechargerFacet@Leonardo".
+    // This finds the vtable's address in any build of the game, with no byte patterns. 0 - the class was not found.
+    // Steps: 1) the type's name string in .data (the TypeDescriptor starts 0x10 bytes before it);
+    // 2) in .rdata - the CompleteObjectLocator with this TypeDescriptor and offset 0 (the primary vtable);
+    // 3) in .rdata - a pointer to that COL: the vtable starts right after it.
     uintptr_t vtableOf(const char* cls) const {
         std::string name = std::string(".?AV") + cls + "@@";
         Range data = section(".data"), rdata = section(".rdata");
@@ -137,7 +139,7 @@ public:
     }
 
 private:
-    // Разобрать текст шаблона "48 8B ?? 05" в список байтов; -1 - любой байт (?? или ?).
+    // Parse a pattern's text "48 8B ?? 05" into a list of bytes; -1 - any byte (?? or ?).
     static std::vector<int> parse(const char* s) {
         std::vector<int> out;
         while (*s) {
@@ -153,7 +155,7 @@ private:
         }
         return out;
     }
-    // Совпадают ли байты по адресу p с разобранным шаблоном (позиции -1 не сравниваются).
+    // Do the bytes at p match the parsed pattern (positions of -1 are not compared)?
     static bool matchesAt(uintptr_t p, const std::vector<int>& pat) {
         auto b = reinterpret_cast<const uint8_t*>(p);
         for (size_t i = 0; i < pat.size(); ++i)
@@ -165,9 +167,9 @@ private:
     const IMAGE_NT_HEADERS64* nt_;
 };
 
-// ---------------------------------------------------------------- патчи
+// ---------------------------------------------------------------- patches
 
-// Запись в защищённую память (код или .rdata) с восстановлением прав.
+// A write to protected memory (code or .rdata), the protection restored after it.
 inline bool writeMem(void* dst, const void* src, size_t n) {
     DWORD old;
     if (!VirtualProtect(dst, n, PAGE_EXECUTE_READWRITE, &old)) return false;
@@ -177,18 +179,18 @@ inline bool writeMem(void* dst, const void* src, size_t n) {
     return true;
 }
 
-// Набор правок, который применяется целиком или не применяется вовсе.
+// A set of writes made all together, or not at all.
 class PatchSet {
 public:
     explicit PatchSet(const Image& img) : img_(img) {}
 
-    // Замена байтов по адресу: orig должен совпасть, иначе весь набор отменяется.
+    // Replace bytes at an address: orig must match, or the whole set is cancelled.
     void bytes(const char* what, uintptr_t at, std::vector<uint8_t> orig, std::vector<uint8_t> repl) {
         items_.push_back({what, at, std::move(orig), std::move(repl), nullptr, nullptr, nullptr});
     }
 
-    // Подмена слота vtable. Функция в слоте должна начинаться с шаблона prologue (проверка, что
-    // это та же функция и раскладка полей та же). *saved получит исходный указатель.
+    // Replace a vtable slot. The function now in the slot must start with the pattern prologue (a check that it is
+    // the same function, with the same field layout). *saved gets the original pointer.
     template <class Fn>
     void vslot(const char* what, uintptr_t vtable, int slot, const char* prologue, Fn hook, Fn* saved) {
         uintptr_t at = vtable ? vtable + 8u * slot : 0;
@@ -200,9 +202,9 @@ public:
                           reinterpret_cast<void*>(cur), prologue});
     }
 
-    // Применить набор. Сначала проверяет ВСЕ правки: адрес найден, исходные байты на месте, у подменяемых
-    // функций ожидаемое начало. Хоть одно несовпадение - не пишет ничего и возвращает false (причина в
-    // логе). Иначе пишет все правки, заполняет *saved исходными указателями и возвращает true.
+    // Apply the set. First checks EVERY write: its address found, the original bytes in place, the functions to be
+    // replaced starting as expected. A single mismatch - writes nothing and returns false (the reason is in the
+    // log). Otherwise makes every write, fills *saved with the original pointers and returns true.
     bool apply(Log& log) {
         for (auto& it : items_) {
             if (!it.at) {
@@ -221,7 +223,7 @@ public:
             if (it.saved) *it.saved = it.savedValue;
             if (!writeMem(reinterpret_cast<void*>(it.at), it.repl.data(), it.repl.size())) {
                 log("write FAILED: %s at RVA %08X (error %lu)", it.what, img_.rva(it.at), GetLastError());
-                return false;  // предыдущие правки остаются; на практике VirtualProtect не падает
+                return false;  // the writes before it stay; in practice VirtualProtect does not fail
             }
             log("patched: %s (RVA %08X)", it.what, img_.rva(it.at));
         }
@@ -241,18 +243,18 @@ private:
     std::vector<Item> items_;
 };
 
-// ---------------------------------------------------------------- ожидание загрузки DLL
+// ---------------------------------------------------------------- waiting for a DLL to load
 
-// Вызывает cb(base) ровно один раз, как только нужная DLL окажется в процессе:
-// сразу, если она уже загружена, иначе из уведомления загрузчика (LdrRegisterDllNotification) -
-// после отображения и связывания импорта, но ДО её DllMain и до любого её кода.
-// Колбэк выполняется под loader lock: никаких LoadLibrary и ожиданий других потоков внутри.
+// Calls cb(base) exactly once, as soon as the DLL is in the process: at once if it is already loaded, otherwise
+// from the loader's notification (LdrRegisterDllNotification) - after it is mapped and its imports bound, but
+// BEFORE its DllMain and any of its code. The callback runs under the loader lock: no LoadLibrary and no waiting
+// for other threads in it.
 class DllWatcher {
 public:
     using Callback = void (*)(uintptr_t base);
 
-    // Начать ожидание DLL с именем dllName (без пути, регистр не важен). Уже загружена - cb вызывается
-    // сразу, отсюда. false - не удалось подписаться на уведомления загрузчика Windows.
+    // Start waiting for the DLL named dllName (no path, any case). Already loaded - cb is called at once, from
+    // here. false - could not subscribe to the Windows loader's notifications.
     bool watch(const wchar_t* dllName, Callback cb) {
         name_ = dllName;
         cb_ = cb;
@@ -278,8 +280,8 @@ private:
         ULONG SizeOfImage;
     };
 
-    // Уведомление загрузчика Windows о загрузке/выгрузке любой DLL. Если загружена (reason 1) нужная -
-    // вызвать колбэк. ctx - наш объект DllWatcher.
+    // The Windows loader's notification of any DLL loaded or unloaded. If it is ours that was loaded (reason 1) -
+    // call the callback. ctx - our DllWatcher.
     static void NTAPI notify(ULONG reason, const NotificationData* data, void* ctx) {
         auto self = static_cast<DllWatcher*>(ctx);
         if (reason != 1 /* LOADED */ || self->fired_) return;
@@ -289,7 +291,7 @@ private:
             self->fire(reinterpret_cast<uintptr_t>(data->DllBase));
     }
 
-    // Вызвать колбэк ровно один раз за время жизни объекта.
+    // Call the callback exactly once in the object's lifetime.
     void fire(uintptr_t base) {
         if (fired_) return;
         fired_ = true;

@@ -1,9 +1,9 @@
-"""Генерирует переходники прокси-DLL winhttp из таблицы экспорта системной winhttp.dll.
+"""Generates the winhttp proxy DLL's stubs from the export table of the system winhttp.dll.
 
-    python tools/gen_winhttp_proxy.py [путь к winhttp.dll]
+    python tools/gen_winhttp_proxy.py [path to winhttp.dll]
 
-Создаёт loader/winhttp_exports.S (jmp на адрес из g_orig[]), loader/winhttp.def
-и loader/winhttp_exports.inc (список имён для GetProcAddress).
+Writes loader/winhttp_exports.S (a jmp to the address in g_orig[]), loader/winhttp.def
+and loader/winhttp_exports.inc (the list of names for GetProcAddress).
 """
 import os
 import struct
@@ -13,14 +13,14 @@ src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.environ.get('SystemR
 d = open(src, 'rb').read()
 p = struct.unpack_from('<I', d, 0x3c)[0]
 opt = p + 24
-assert struct.unpack_from('<H', d, opt)[0] == 0x20b, 'нужна 64-битная winhttp.dll'
+assert struct.unpack_from('<H', d, opt)[0] == 0x20b, 'a 64-bit winhttp.dll is needed'
 nsec = struct.unpack_from('<H', d, p + 6)[0]
 sopt = struct.unpack_from('<H', d, p + 20)[0]
 secs = [struct.unpack_from('<IIII', d, opt + sopt + 40 * i + 8) for i in range(nsec)]
 
 
 def r2o(r):
-    """RVA -> смещение в файле winhttp.dll."""
+    """RVA -> offset in the winhttp.dll file."""
     for vs, va, rs, ra in secs:
         if va <= r < va + max(vs, rs):
             return ra + r - va
@@ -43,7 +43,7 @@ for i in range(nfunc):
     if not struct.unpack_from('<I', d, r2o(afunc) + 4 * i)[0]:
         continue
     if i not in names:
-        sys.exit(f'экспорт только по ординалу #{base + i} не поддержан')
+        sys.exit(f'an export by ordinal only (#{base + i}) is not supported')
     exports.append((base + i, names[i]))
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'loader')
