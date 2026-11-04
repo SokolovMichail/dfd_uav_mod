@@ -25,14 +25,16 @@ loader, `common/patch.h` and `common/guard.h`, `re/` and `mod/tools/`.
 
 | Folder | |
 |---|---|
-| `plugins/spawn/core/` | the rules (one squad per vehicle, kits, cooldown), reading the framework's table columns, which tables are read (`mods.h`), F4's look (`look.h`) - no Windows, no game memory |
+| `plugins/spawn/core/` | the rules (tethered and untethered vehicles, kits, cooldowns, saved games), reading the framework's table columns, which tables are read (`mods.h`), F4's look (`look.h`) - no Windows, no game memory |
 | `plugins/spawn/logic_dll/` | the binding to today's `logic.dll`: the game's objects (`engine.h`), the rules' port (`port.h`), the hooks (`hooks.cpp`), the tables; `standalone.cpp` / `defiance.cpp` - the two builds |
-| `plugins/spawn/game_dll/` | the binding to `game.dll`: F4's button shows the cooldown and each vehicle's own look (`panel.cpp`) |
+| `plugins/spawn/game_dll/` | the binding to `game.dll`: F4's cooldown, each vehicle's own F4 pictures and tooltips (`panel.cpp`) |
 | `mod/framework/` | the Spawn Framework mod (`build_framework_mod.py`), what mods made on it share (`framework.py`), the F4 picture tool (`art/buttons.py`) |
 | `mod/uav_carriers/` | UAV Carriers (`build_mod.py`) and its drone icon (`art/front_drone.py`) |
 | `mod/tools/` | the table and archive tools both builds use |
 | `plugins/spawn_probe/`, `mod/probe/` | the Phase 0 probe (kept for reference) |
 | `tests/` | `core_test` - the core through a test port |
+| `re/` | the disassembly tools the engine was studied with ([re/README.md](re/README.md)) |
+| `tools/` | `gen_winhttp_proxy.py` - the standalone loader's export forwarding |
 
 ## Build
 
@@ -50,11 +52,12 @@ cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug
 cmake --build cmake-build-debug --target deploy
 ```
 
-`deploy` (the game must be closed) installs `bin\plugins\SpawnFramework.dll`, `mods\Spawn_Framework` and `mods\UAV_Carriers`, and removes
-the probe. It leaves `bin\winhttp.dll` as it is: that is already a loader of `bin\plugins\*.dll` (ours from
-DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` installs ours too. Then enable
-**Spawn Framework** and **UAV Carriers** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares). The vans are in the Resistance and
-Founders skirmish armies.
+`deploy` (the game must be closed) installs `bin\plugins\SpawnFramework.dll`, `mods\Spawn_Framework` and
+`mods\UAV_Carriers`, and removes the probe. It leaves `bin\winhttp.dll` as it is: that is already a loader of
+`bin\plugins\*.dll` (ours from DFDRepairMod, or the trainer's). On a game without one, `deploy_with_loader` installs
+ours too. `deploy_defiance` installs the DefianceLoader build instead (`DefianceLoader\plugins\spawn_framework.dll`
+and its manifest) and removes the standalone `SpawnFramework.dll`. Then enable **Spawn Framework** and
+**UAV Carriers** in MODS; disable other mods that ship `cars.xml` (HEMTT Spares).
 
 Development builds add the framework's test vehicles to UAV Carriers (the CMake option `SPAWN_TEST_VEHICLES`, on
 by default; off for a release): the **Test Troop Van (untethered)** in the Resistance army - two marksman squads per
@@ -62,14 +65,16 @@ launch, the framework's default F4 pictures.
 
 ## Roadmap
 
-Done on branches, not in `dev` yet:
+To do:
 
-- **Recall** (`feature/recall`) - packed up with its whole squad inside the vehicle's circle, the vehicle takes the
-  squad back without a death and gets its kit back if it has room. Needs the pack-up picture and tooltip to match.
-- **Pack-up picture** (`feature/pack-icon`) - the carriers' drone struck out; the framework's default is the game's
-  own pack-up button; "Mobile mode" tooltips.
-- **Release 1.0** (`feature/release-1.0`) - the version, the MODS menu icons, UAV Carriers' cover and banner. Still
-  to do: the release archives and their readme, a build with the test vehicles off.
+- **Release 1.0 packaging** - the release archives and their readme, a build with the test vehicles off (the
+  version, the MODS menu icons and UAV Carriers' cover and banner are done).
+
+Done on branches, not in `dev`:
+
+- **Recall** (`feature/recall`, not planned for now) - packed up with its whole squad inside the vehicle's circle,
+  the vehicle takes the squad back without a death and gets its kit back if it has room. Would need the pack-up
+  picture and tooltip to match.
 - **DefianceLoader patch build** (`feature/defiance-patches`) - table-merge patches instead of whole tables, so the
   mod no longer clashes with HEMTT Spares. Waits for DefianceLoader to fix its table merge (it misses the unit
   cache's first reads).
@@ -81,6 +86,8 @@ Ideas:
   Needs: the logic.dll function behind them (a probe, as for squads); a crew - a squad that can drive it
   (`squads.xml` `driving_classes`); "alive" and "destroy" for a vehicle in `SpawnPort` (today: soldiers alive, and
   their self-detonation); a column saying what to spawn.
+- **A compatibility mod for HEMTT Spares** until the patch build works: the shared tables with both mods' rows,
+  enabled below both.
 - **The carriers' own circle** instead of the ammunition supply circle they show now (it clashes with HEMTT Spares,
   which changes the same circle code).
 - **Enemy AI using carriers.**

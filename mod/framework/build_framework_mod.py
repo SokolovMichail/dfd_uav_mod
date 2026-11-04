@@ -1,7 +1,7 @@
 """Builds the Spawn Framework mod (mods\\Spawn_Framework) from the installed game's current files:
 
     python mod/framework/build_framework_mod.py --game <game folder> --out <mods/Spawn_Framework> [--cache <dir>]
-                                                [--version 0.1]
+                                                [--version 1.0]
 
 The game-side half of the Spawn Framework, installed once with the plugin and shared by every mod made on it
 (framework.py): F4's layout with the framework's two progress bars, and the default F4 pictures - the generic rifle
@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
 sys.path.insert(0, os.path.join(HERE, 'art'))
 from gamefiles import Game  # noqa: E402
 import buttons  # noqa: E402
+import mod_art  # noqa: E402
 import framework as fw  # noqa: E402
 
 MOD_JSON = {
@@ -57,9 +58,10 @@ def main():
     # the pack-up picture: the game's own pack-up button, as supply vehicles have it - nothing is destroyed by it
     shutil.copy(S(fw.PACK_BUTTON), os.path.join(pictures, f'{fw.DEFAULT_PREFIX}_recall.dds'))
 
-    # The MODS menu lists only mods with an icon; until the mod has its own, the game's example mod's.
-    shutil.copy(os.path.join(a.game, 'mods', 'mod_example_1', 'basis', 'mod_icon.dds'),
-                os.path.join(a.out, 'basis', 'mod_icon.dds'))
+    print('== the MODS menu icon')  # (the menu lists only mods with an icon)
+    mod_art.save_dds(mod_art.render_framework(buttons.load(S(fw.UNPACK_BUTTON))[0],
+                                              buttons.load(S(fw.DEFAULT_ICON_SOURCE))[0]),
+                     os.path.join(a.out, 'basis', 'mod_icon.dds'))
     info = dict(MOD_JSON, description=f'Version {a.version}.\n' + MOD_JSON['description'])
     with open(os.path.join(a.out, 'mod.json'), 'w', encoding='utf-8') as f:
         json.dump(info, f, indent=4)
