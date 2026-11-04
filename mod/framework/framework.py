@@ -16,6 +16,7 @@ SPAWN_COLUMNS = ['spawn_squad', 'spawn_ammo', 'spawn_cooldown', 'spawn_tethered'
 
 PICTURES_DIR = 'textures/ui/pictures/Main/buttons2'  # where F4's pictures live (the game's buttons_unpack_n...)
 UNPACK_BUTTON = f'{PICTURES_DIR}/buttons_unpack_n.dds'  # the button the pictures are drawn on
+PACK_BUTTON = f'{PICTURES_DIR}/buttons_pack_n.dds'  # the game's own pack-up button: the default pack-up picture
 
 
 def picture_name(file_name):
@@ -24,7 +25,8 @@ def picture_name(file_name):
 
 
 # The defaults - the plugin names the same files and keys (plugins/spawn/core/look.h, kDefaultIcon...): change both.
-# The framework's pictures, made from the generic rifle squad's icon.
+# The framework's pictures, made from the generic rifle squad's icon; the pack-up one is the game's own (PACK_BUTTON),
+# as supply vehicles show it.
 DEFAULT_PREFIX = 'spawn_framework'
 DEFAULT_ICON_SOURCE = 'textures/ui/pictures/tech_pic/infantry_icons_big/gnrc_rifle.dds'
 DEFAULT_TIP, DEFAULT_TIP_RECALL = 'spawn_deploy', 'spawn_recall'
@@ -36,7 +38,7 @@ DEFAULT_STRINGS = [
     (DEFAULT_TIP + '_desc', 'order_unpack_desc', 'The vehicle stops and sends out its unit.'),
     (DEFAULT_TIP + '_add', 'order_unpack_add', 'One unit at a time; the vehicle cannot move while deployed. A lost '
                                                'unit packs the vehicle up, and the next one is ready after a cooldown.'),
-    (DEFAULT_TIP_RECALL, 'order_pack', 'Recall unit (%s)'),
+    (DEFAULT_TIP_RECALL, 'order_pack', 'Mobile mode (%s)'),
     (DEFAULT_TIP_RECALL + '_desc', 'order_pack_desc', 'The vehicle packs up and switches to the mobile mode. Its unit '
                                                       'self-destructs.'),
     (DEFAULT_TIP_RECALL + '_add', 'order_pack_add', 'The next unit is ready after a cooldown.'),

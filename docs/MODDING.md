@@ -113,14 +113,15 @@ with the vehicle's own pictures and tooltips:
 |---|---|---|
 | `spawn_icon` | the deploy button, ready - and what the cooldown fills over | the generic rifle squad's icon |
 | `spawn_icon_cooldown` | what the cooldown fills it with: the part of the wait still to go | a dim grey copy of it |
-| `spawn_icon_recall` | the pack-up button | it with an arrow down |
+| `spawn_icon_recall` | the pack-up button | the game's own (`buttons_pack_n`), as supply vehicles have it |
 | `spawn_tooltip` | the deploy button's tooltip: a `locale/strres.xml` key | `spawn_deploy` |
 | `spawn_tooltip_recall` | the pack-up button's | `spawn_recall` |
 
 - **Pictures** are named the way layouts name them: `main\buttons2\x.dds` is the file
   `basis/textures/ui/pictures/Main/buttons2/x.dds` of your mod. Give them a prefix of your own, so no other mod's
   file is in the way. In the framework's source, `mod/framework/art/buttons.py` makes the three from any icon, the
-  way the game draws its own timer buttons.
+  way the game draws its own timer buttons; its pack-up picture is the icon struck out with a red slash (UAV
+  Carriers': the squad self-destructs).
 - **Tooltip keys** have `<key>_desc` and `<key>_add` rows too, and `%s` - the hotkey - in the first; at most 15
   characters (the plugin writes the key into the game's own string in place; a longer one shows the default, and
   the log says so).

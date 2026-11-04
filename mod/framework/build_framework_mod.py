@@ -5,7 +5,7 @@
 
 The game-side half of the Spawn Framework, installed once with the plugin and shared by every mod made on it
 (framework.py): F4's layout with the framework's two progress bars, and the default F4 pictures - the generic rifle
-squad's icon - for a vehicle whose row names none of its own. The default tooltips' rows come with the mods made on
+squad's icon, and the game's own pack-up button - for a vehicle whose row names none of its own. The default tooltips' rows come with the mods made on
 the framework (in the standalone build a strres.xml replaces another whole, so this mod ships none).
 """
 import argparse
@@ -54,6 +54,8 @@ def main():
     os.makedirs(pictures)
     buttons.make(S(fw.UNPACK_BUTTON), buttons.load(S(fw.DEFAULT_ICON_SOURCE))[0],
                  os.path.join(pictures, fw.DEFAULT_PREFIX))
+    # the pack-up picture: the game's own pack-up button, as supply vehicles have it - nothing is destroyed by it
+    shutil.copy(S(fw.PACK_BUTTON), os.path.join(pictures, f'{fw.DEFAULT_PREFIX}_recall.dds'))
 
     # The MODS menu lists only mods with an icon; until the mod has its own, the game's example mod's.
     shutil.copy(os.path.join(a.game, 'mods', 'mod_example_1', 'basis', 'mod_icon.dds'),

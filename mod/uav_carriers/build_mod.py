@@ -16,7 +16,7 @@ destroyed, and the next one waits 60 s after it. They carry no passengers.
 What makes them the framework's is their cars.xml rows (the framework's columns, framework/framework.py); F4's
 layout comes with the Spawn Framework mod. Their F4 pictures and tooltips are the mod's own: the front drone of the
 swarm drones' icon (art/front_drone.py, made into F4's pictures by the framework's art/buttons.py) and "Deploy
-drone" / "Recall drone".
+drone" / "Mobile mode"; their pack-up picture is the drone struck out (it self-destructs).
 
 The game files are taken fresh every time (gamefiles.py: the last archive or folder of the layer that has the
 file), so after a game update a rebuild is enough. The base game (skirmish, main campaign) and both DLCs (LAYERS).
@@ -178,7 +178,7 @@ STRINGS = fw.DEFAULT_STRINGS + [
     (TIP + '_desc', 'order_unpack_desc', 'The vehicle stops and launches its drone. Each drone takes one UAV kit.'),
     (TIP + '_add', 'order_unpack_add', 'One drone at a time; the vehicle cannot move while deployed. A lost drone '
                                        'packs the vehicle up, and the next one is ready after a cooldown.'),
-    (TIP_RECALL, 'order_pack', 'Recall drone (%s)'),
+    (TIP_RECALL, 'order_pack', 'Mobile mode (%s)'),
     (TIP_RECALL + '_desc', 'order_pack_desc', 'The vehicle packs up and switches to the mobile mode. Its drone '
                                               'self-destructs.'),
     (TIP_RECALL + '_add', 'order_pack_add', 'The next drone is ready after a cooldown.'),
